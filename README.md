@@ -35,7 +35,7 @@ El sistema simula el funcionamiento básico de un cine, permitiendo administrar 
 ## 👥 Integrantes
 
 - Daniel Enrique Menendez Gomez - MG13020
-- [Nombre del integrante 2]
+- Joel Isaias Garcia Torres - GT14001
 - [Nombre del integrante 3]
 
 
