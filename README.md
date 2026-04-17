@@ -35,8 +35,8 @@ El sistema simula el funcionamiento básico de un cine, permitiendo administrar 
 ## 👥 Integrantes
 
 - Daniel Enrique Menendez Gomez - MG13020
-- [Nombre del integrante 2]
-- [Nombre del integrante 3]
+- Joel Isaias Garcia Torres - GT14001
+- Paola Elizabeth Ascencio Barrientos - AA25001
 
 
 ---
@@ -49,7 +49,16 @@ El sistema simula el funcionamiento básico de un cine, permitiendo administrar 
 ## 📁 Estructura del proyecto
 
 ```
-
+cine-boletos-cli/
+├── docs/                  # Documentación del proyecto
+│   ├── pseudocode/        # Pseudocódigo de las funcionalidades
+│   └── srs/               # Software Requirements Specification (Especificación de Requisitos)
+├── src/                   # Código fuente principal
+│   └── main.py            # Archivo principal con el menú y lógica del CLI
+├── tests/                 # Pruebas unitarias (por implementar)
+├── .gitignore
+├── LICENSE
+└── README.md
 ```
 
 ---
