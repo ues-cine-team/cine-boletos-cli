@@ -22,6 +22,7 @@ Este objeto no debe:
 - ejecutar lógica externa al dominio.
 """
 
+from cine_boletos_cli.domain.exceptions.domain_errors import CurrencyMismatchError
 from cine_boletos_cli.shared.constants import DEFAULT_CURRENCY
 from decimal import Decimal
 
@@ -219,6 +220,6 @@ class Money:
         """
 
         if self.currency != other.currency:
-            raise ValueError(
+            raise CurrencyMismatchError(
                 "Las monedas de los valores monetarios no coinciden."
                 )
