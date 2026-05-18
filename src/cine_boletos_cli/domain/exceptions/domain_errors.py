@@ -1,80 +1,178 @@
 """
-Este archivo centraliza las excepciones oficiales del dominio.
+domain_errors.py
 
-La idea es que el sistema use errores claros y consistentes en lugar de lanzar
-mensajes genéricos o excepciones distintas en cada módulo.
+Excepciones oficiales para las reglas de negocio del dominio.
 
-Por ejemplo, si alguien intenta comprar un asiento que ya fue reservado,
-el sistema debería lanzar un error específico del negocio y no simplemente:
-
-raise Exception("Algo salió mal")
-
-Ejemplo correcto:
-
-raise SeatNotAvailableError(
-    "The selected seat is no longer available."
-)
-
-Esto permite que otras partes del sistema puedan reaccionar correctamente:
-- cancelar la operación,
-- informar al usuario,
-- registrar el problema,
-- o ejecutar lógica de compensación.
-
-Aunque algunas excepciones parezcan clases vacías, siguen siendo útiles porque
-su valor está en el significado del tipo de error.
-
-Por ejemplo:
-
-except SeatNotAvailableError:
-
-es mucho más claro y mantenible que usar:
-
-except Exception:
-
-La idea es que el dominio tenga errores oficiales y entendibles para todo el
-equipo.
+Estas excepciones proporcionan una jerarquía consistente para representar
+errores esperados del negocio. Las capas de aplicación y CLI pueden capturarlas
+explícitamente y reaccionar de manera adecuada con lógica de recuperación,
+mensajes al usuario o procesos de compensación.
 """
 
 
 class DomainError(Exception):
     """
-    Clase base para todos los errores del dominio.
+    Clase base para todas las excepciones del dominio.
 
-    Cualquier excepción relacionada con reglas del negocio debería heredar
-    de esta clase para mantener consistencia en el manejo de errores.
+    Todas las violaciones de reglas de negocio deberían heredar de esta clase
+    para mantener consistencia en el manejo de errores dentro del sistema.
+
+    Notes
+    -----
+    Se recomienda capturar :class:`DomainError` en lugar de ``Exception``
+    cuando el error es esperado y proviene de la capa de dominio.
     """
+
     pass
 
-
-# ============================================================================
-# EXAMPLE DOMAIN ERROR
-# ============================================================================
 
 class SeatNotAvailableError(DomainError):
     """
-    Se lanza cuando un asiento ya no puede reservarse o comprarse.
+    Se lanza cuando un asiento no puede reservarse o comprarse.
 
-    Ejemplo:
+    Este error cubre situaciones como:
+
     - el asiento ya fue comprado,
     - el asiento está bloqueado por otro usuario,
-    - o el asiento dejó de estar disponible.
+    - el asiento dejó de estar disponible.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
     """
+
     pass
 
 
-# ============================================================================
-# FUTURE DOMAIN ERRORS
-# ============================================================================
+class SeatAlreadyBookedError(DomainError):
+    """
+    Se lanza cuando se intenta operar sobre un asiento ya reservado.
 
-# TODO:
-# - SeatAlreadyBookedError
-# - SeatLockedError
-# - InvalidSeatStateTransitionError
-# - BookingNotFoundError
-# - BookingAlreadyCancelledError
-# - BookingAlreadyConfirmedError
-# - InvalidBookingStateError
-# - PaymentFailedError
-# - RefundFailedError
-# - IdempotencyConflictError
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
+
+
+class SeatLockedError(DomainError):
+    """
+    Se lanza cuando un asiento está bloqueado y no puede ser modificado
+    por otro proceso o usuario.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
+
+
+class InvalidSeatStateTransitionError(DomainError):
+    """
+    Se lanza cuando un asiento cambia de estado de forma inválida.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
+
+
+class BookingNotFoundError(DomainError):
+    """
+    Se lanza cuando una reserva no existe o no puede encontrarse.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
+
+
+class BookingAlreadyCancelledError(DomainError):
+    """
+    Se lanza cuando se intenta cancelar una reserva ya cancelada.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
+
+
+class BookingAlreadyConfirmedError(DomainError):
+    """
+    Se lanza cuando se intenta confirmar una reserva ya confirmada.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
+
+
+class InvalidBookingStateError(DomainError):
+    """
+    Se lanza cuando una reserva se encuentra en un estado inválido para
+    ejecutar la operación solicitada.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
+
+
+class PaymentFailedError(DomainError):
+    """
+    Se lanza cuando un pago no puede completarse correctamente.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
+
+
+class RefundFailedError(DomainError):
+    """
+    Se lanza cuando un reembolso falla.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
+
+
+class IdempotencyConflictError(DomainError):
+    """
+    Se lanza cuando una idempotency key entra en conflicto con una operación
+    existente.
+
+    Parameters
+    ----------
+    message : str
+        Descripción legible del error.
+    """
+
+    pass
