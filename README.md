@@ -49,16 +49,57 @@ El sistema simula el funcionamiento básico de un cine, permitiendo administrar 
 ## 📁 Estructura del proyecto
 
 ```
+📁 Estructura del proyecto
+
 cine-boletos-cli/
-├── docs/                  # Documentación del proyecto
-│   ├── pseudocode/        # Pseudocódigo de las funcionalidades
-│   └── srs/               # Software Requirements Specification (Especificación de Requisitos)
-├── src/                   # Código fuente principal
-│   └── main.py            # Archivo principal con el menú y lógica del CLI
-├── tests/                 # Pruebas unitarias (por implementar)
-├── .gitignore
+├── docs/                              # Documentación y análisis del proyecto
+│   ├── pseudocode/                    # Pseudocódigo de funcionalidades y flujos
+│   └── srs/                           # Software Requirements Specification
+│
+├── src/                               # Código fuente principal
+│   └── cine_boletos_cli/
+│       ├── application/               # Casos de uso y lógica de aplicación
+│       │   ├── dto/                   # Objetos de transferencia de datos
+│       │   ├── services/              # Servicios de aplicación
+│       │   └── use_cases/             # Casos de uso del sistema
+│       │
+│       ├── cli/                       # Interfaz de línea de comandos
+│       │   ├── command_router.py      # Router principal de comandos
+│       │   └── commands/              # Comandos CLI organizados por módulo
+│       │
+│       ├── domain/                    # Núcleo del dominio y reglas de negocio
+│       │   ├── entities/              # Entidades principales del sistema
+│       │   ├── exceptions/            # Excepciones oficiales del dominio
+│       │   └── value_objects/         # Value Objects del dominio
+│       │
+│       ├── infrastructure/            # Infraestructura técnica del sistema
+│       │   ├── idempotency/           # Manejo de idempotencia
+│       │   ├── locking/               # Sistema de bloqueo de asientos
+│       │   ├── logging/               # Logging centralizado
+│       │   └── persistence/           # Persistencia y repositorios
+│       │
+│       ├── shared/                    # Componentes compartidos globalmente
+│       │   ├── constants.py           # Constantes oficiales del sistema
+│       │   └── utils.py               # Utilidades compartidas
+│       │
+│       ├── workers/                   # Workers y tareas asíncronas
+│       │   ├── compensation_worker.py
+│       │   ├── lock_expiry_worker.py
+│       │   └── notification_worker.py
+│       │
+│       ├── main.py                    # Punto de entrada principal
+│       └── __init__.py
+│
+├── tests/                             # Suite de pruebas
+│   ├── concurrency/                   # Pruebas de concurrencia y locking
+│   ├── integration/                   # Pruebas de integración
+│   └── unit/                          # Pruebas unitarias
+│
+├── pyproject.toml                     # Configuración del proyecto y dependencias
+├── uv.lock                            # Lockfile de dependencias
+├── README.md
 ├── LICENSE
-└── README.md
+└── .gitignore
 ```
 
 ---
