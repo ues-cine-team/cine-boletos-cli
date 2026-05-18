@@ -190,3 +190,15 @@ class InvalidSeatIdentifierError(DomainError):
     """
 
     pass
+
+class CurrencyMismatchError(DomainError):
+    """
+    Se lanza cuando se intenta operar entre diferentes monedas.
+
+    Examples
+    --------
+    - USD + EUR
+    - USD > BTC
+    """
+
+    pass
