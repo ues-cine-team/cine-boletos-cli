@@ -176,3 +176,17 @@ class IdempotencyConflictError(DomainError):
     """
 
     pass
+
+class InvalidSeatIdentifierError(DomainError):
+    """
+    Se lanza cuando un identificador de asiento es inválido.
+
+    Examples
+    --------
+    - formato incorrecto,
+    - fila vacía,
+    - número inválido,
+    - identificador incompleto.
+    """
+
+    pass
