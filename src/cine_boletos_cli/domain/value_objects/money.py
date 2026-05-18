@@ -1,91 +1,224 @@
 """
-Este archivo representará dinero dentro del dominio.
+money.py
 
-La idea es evitar usar floats directamente para precios y pagos, porque los
-floats pueden generar errores de precisión que en sistemas financieros son
-muy peligrosos.
+Value Object para representar valores monetarios dentro del dominio.
 
-Ejemplo:
+Este objeto encapsula montos y monedas utilizando ``Decimal`` para evitar
+errores de precisión asociados al uso de ``float`` en operaciones financieras.
 
-0.1 + 0.2 != 0.3
+Responsibilities
+----------------
+- representar cantidades monetarias,
+- validar compatibilidad de monedas,
+- permitir operaciones aritméticas seguras,
+- mantener precisión consistente.
 
-En un sistema de boletos eso podría provocar:
-- cobros incorrectos,
-- totales inconsistentes,
-- errores en reembolsos,
-- o diferencias en reportes.
-
-Por eso el dinero se modelará como un Value Object formal del dominio y no
-como números sueltos.
-
-Este objeto debería encargarse de:
-- representar montos monetarios,
-- validar moneda,
-- permitir operaciones seguras,
-- y mantener precisión consistente.
-
-Qué debería tener:
-- amount
-- currency
-
-Qué debería permitir:
-- sumar
-- restar
-- multiplicar
-- comparar
-
-Qué NO debería hacer:
-- acceder a base de datos
-- procesar pagos
-- imprimir tickets
-- manejar lógica de negocio externa
+Notes
+-----
+Este objeto no debe:
+- acceder a bases de datos,
+- procesar pagos,
+- manejar lógica de infraestructura,
+- ejecutar lógica externa al dominio.
 """
 
-
+from cine_boletos_cli.shared.constants import DEFAULT_CURRENCY
 from decimal import Decimal
 
 
 class Money:
     """
     Representa un valor monetario dentro del dominio.
+
+    Parameters
+    ----------
+    amount : str | int | Decimal
+        Monto monetario.
+
+    currency : str
+        Código de moneda en formato ISO 4217.
+
+    Examples
+    --------
+    >>> Money("10.50", "USD")
+    >>> Money(20, "EUR")
     """
 
-    def __init__(self, amount, currency):
+    def __init__(self, amount, currency=DEFAULT_CURRENCY):
         """
-        amount:
-            monto monetario.
+        Inicializa un objeto monetario.
 
-        currency:
-            código de moneda (USD, EUR, etc.).
+        Parameters
+        ----------
+        amount : str | int | Decimal
+            Monto monetario.
+
+        currency : str
+            Código de moneda.
         """
 
-        # Usar Decimal para evitar errores de precisión con floats.
         self.amount = Decimal(amount)
-
         self.currency = currency
 
-    def __add__(self, other_money):
+    def __add__(self, other):
         """
-        Suma dos cantidades monetarias.
+        Suma dos valores monetarios.
 
-        Antes de sumar debería validarse que ambas monedas sean iguales.
+        Parameters
+        ----------
+        other : Money
+            Valor monetario a sumar.
 
-        Ejemplo:
-            10 USD + 5 USD = 15 USD
+        Returns
+        -------
+        Money
+            Nuevo objeto con el resultado de la suma.
 
-        No debería permitirse:
-            10 USD + 5 EUR
+        Raises
+        ------
+        ValueError
+            Si las monedas no coinciden.
         """
 
-        # TODO:
-        # - validar moneda
-        # - retornar nuevo objeto Money
-        pass
+        self._validate_currency(other)
 
-    # TODO:
-    # - validar monto
-    # - validar moneda
-    # - implementar resta
-    # - implementar multiplicación
-    # - implementar comparaciones
-    # - evaluar inmutabilidad
+        return Money(
+            amount=self.amount + other.amount,
+            currency=self.currency,
+        )
+
+    def __sub__(self, other):
+        """
+        Resta dos valores monetarios.
+
+        Parameters
+        ----------
+        other : Money
+            Valor monetario a restar.
+
+        Returns
+        -------
+        Money
+            Nuevo objeto con el resultado de la resta.
+
+        Raises
+        ------
+        ValueError
+            Si las monedas no coinciden.
+        """
+
+        self._validate_currency(other)
+
+        return Money(
+            amount=self.amount - other.amount,
+            currency=self.currency,
+        )
+
+    def __mul__(self, multiplier):
+        """
+        Multiplica un valor monetario por un factor numérico.
+
+        Parameters
+        ----------
+        multiplier : int | float | Decimal
+            Factor multiplicador.
+
+        Returns
+        -------
+        Money
+            Nuevo objeto con el resultado de la multiplicación.
+        """
+
+        return Money(
+            amount=self.amount * Decimal(multiplier),
+            currency=self.currency,
+        )
+    
+    def __rmul__(self, multiplier):
+        """
+        Permite multiplicación inversa.
+
+        Examples
+        --------
+        >>> 3 * Money("10", "USD")
+        """
+
+        return self.__mul__(multiplier)
+
+    def __eq__(self, other):
+        """
+        Compara igualdad entre dos valores monetarios.
+        """
+
+        return (
+            self.amount == other.amount
+            and self.currency == other.currency
+        )
+
+    def __lt__(self, other):
+        """
+        Compara si un valor monetario es menor que otro.
+
+        Raises
+        ------
+        ValueError
+            Si las monedas no coinciden.
+        """
+
+        self._validate_currency(other)
+
+        return self.amount < other.amount
+
+    def __le__(self, other):
+        """
+        Compara si un valor monetario es menor o igual que otro.
+        """
+
+        self._validate_currency(other)
+
+        return self.amount <= other.amount
+
+    def __gt__(self, other):
+        """
+        Compara si un valor monetario es mayor que otro.
+        """
+
+        self._validate_currency(other)
+
+        return self.amount > other.amount
+
+    def __ge__(self, other):
+        """
+        Compara si un valor monetario es mayor o igual que otro.
+        """
+
+        self._validate_currency(other)
+
+        return self.amount >= other.amount
+
+    def __repr__(self):
+        """
+        Retorna representación legible del objeto.
+        """
+
+        return f"Money(amount={self.amount}, currency='{self.currency}')"
+
+    def _validate_currency(self, other):
+        """
+        Valida que dos objetos Money tengan la misma moneda.
+
+        Parameters
+        ----------
+        other : Money
+            Objeto monetario a validar.
+
+        Raises
+        ------
+        ValueError
+            Si las monedas son distintas.
+        """
+
+        if self.currency != other.currency:
+            raise ValueError(
+                "Las monedas de los valores monetarios no coinciden."
+                )
