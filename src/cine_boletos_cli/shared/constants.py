@@ -1,85 +1,79 @@
 """
-Este archivo concentra los valores fijos que usa todo el sistema.
+shared/constants.py
 
-La idea es evitar escribir strings repetidos en distintos archivos, porque eso
-termina generando inconsistencias y bugs difíciles de detectar.
+Constantes globales compartidas por todo el sistema.
 
-Por ejemplo:
-si un developer escribe "BOOKED" y otro escribe "booked",
-ambos creen que significan lo mismo, pero Python los considera distintos.
+Objetivos:
+- evitar magic strings y magic numbers,
+- mantener consistencia entre módulos,
+- reducir errores por diferencias de escritura,
+- centralizar configuraciones del sistema.
 
-Eso puede provocar errores como este:
-
-seat.status = "booked"
-
-if seat.status == "BOOKED":
-    print("El asiento ya fue comprado")
-else:
-    print("El sistema cree que el asiento NO esta comprado")
-
-Resultado:
-el sistema podria permitir vender el mismo asiento otra vez.
-
-Por eso los estados oficiales del sistema se definen una sola vez aquí y el
-resto de módulos simplemente los reutilizan.
-
-Ejemplo correcto:
-
-seat.status = SEAT_BOOKED
-
-if seat.status == SEAT_BOOKED:
-    print("El asiento ya fue comprado")
-
-De esa forma todos los developers usan exactamente los mismos valores.
+Todas las constantes deben reutilizarse desde este archivo.
 """
 
 # ============================================================================
 # SEAT STATES
 # ============================================================================
 
-# Estado de un asiento disponible para reservar o comprar.
+# Asiento disponible para reservar o comprar.
 SEAT_AVAILABLE = "AVAILABLE"
 
-# TODO:
-# SEAT_LOCKED
-# SEAT_BOOKED
+# Asiento bloqueado temporalmente durante el proceso de compra.
+SEAT_LOCKED = "LOCKED"
+
+# Asiento comprado exitosamente.
+SEAT_BOOKED = "BOOKED"
 
 
 # ============================================================================
 # BOOKING STATES
 # ============================================================================
 
-# TODO:
-# BOOKING_PENDING
-# BOOKING_CONFIRMED
-# BOOKING_CANCELLED
+# Reserva creada pero aún no confirmada.
+BOOKING_PENDING = "PENDING"
+
+# Reserva confirmada.
+BOOKING_CONFIRMED = "CONFIRMED"
+
+# Reserva cancelada.
+BOOKING_CANCELLED = "CANCELLED"
 
 
 # ============================================================================
 # PAYMENT STATES
 # ============================================================================
 
-# TODO:
-# PAYMENT_PENDING
-# PAYMENT_PAID
-# PAYMENT_FAILED
-# PAYMENT_REFUNDED
+# Pago en proceso.
+PAYMENT_PENDING = "PENDING"
+
+# Pago completado exitosamente.
+PAYMENT_PAID = "PAID"
+
+# Pago fallido.
+PAYMENT_FAILED = "FAILED"
+
+# Pago reembolsado.
+PAYMENT_REFUNDED = "REFUNDED"
 
 
 # ============================================================================
 # LOCK CONFIGURATION
 # ============================================================================
 
-# TODO:
-# máximo que un asiento puede permanecer bloqueado antes de liberarse automáticamente
-# LOCK_TTL_SECONDS
+# Tiempo máximo de bloqueo de asiento (segundos).
+LOCK_TTL_SECONDS = 300
 
 
 # ============================================================================
 # SYSTEM CONFIGURATION
 # ============================================================================
 
-# TODO:
-# DEFAULT_CURRENCY
-# DEFAULT_TIMEZONE
-# MAX_SEATS_PER_BOOKING
+# Moneda por defecto del sistema.
+DEFAULT_CURRENCY = "USD"
+
+# Timezone por defecto.
+DEFAULT_TIMEZONE = "UTC"
+
+# Máximo de asientos permitidos por reserva.
+MAX_SEATS_PER_BOOKING = 10
