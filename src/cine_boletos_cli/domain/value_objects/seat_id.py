@@ -22,6 +22,8 @@ El estado de un asiento pertenece al contexto de una función específica
 
 
 from cine_boletos_cli.domain.exceptions.domain_errors import InvalidSeatIdentifierError
+
+
 class SeatId:
     """
     Identificador único de un asiento dentro de una función.
