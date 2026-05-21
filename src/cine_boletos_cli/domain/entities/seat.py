@@ -1,75 +1,60 @@
 """
-Este archivo define la entidad Seat.
+seat.py
 
-¿Por qué existe?
-Porque el asiento es una pieza central del sistema de boletos. No debe ser
-solo un dato suelto; debe saber en qué estado está, cuándo puede bloquearse,
-cuándo puede liberarse y cuándo ya fue comprado.
+Entidad de dominio que representa un asiento dentro de una función de cine.
 
-¿Cómo se usará en el futuro?
-- `booking_service.py` usará Seat para bloquear, confirmar o liberar asientos.
-- `seat_lock_manager.py` ayudará a proteger el bloqueo temporal.
-- `lock_expiry_worker.py` liberará locks vencidos.
-- `seat_repository.py` guardará y recuperará el estado del asiento.
+El asiento controla su propio estado y protege las reglas básicas de negocio
+relacionadas con disponibilidad, bloqueo temporal y compra.
 
-Qué debe resolver esta entidad:
-- representar un asiento de una función,
-- mantener su estado actual,
-- impedir transiciones inválidas,
-- permitir bloqueo temporal,
-- permitir liberación,
-- permitir confirmación de compra.
-
-Reglas básicas esperadas:
-- AVAILABLE: el asiento está libre.
-- LOCKED: el asiento está apartado temporalmente.
-- BOOKED: el asiento ya fue comprado.
-
-Flujo normal esperado:
-1. El asiento inicia como AVAILABLE.
-2. El sistema lo bloquea temporalmente cuando alguien empieza a comprar.
-3. Si el pago sale bien, el asiento pasa a BOOKED.
-4. Si la compra falla o el tiempo vence, el asiento vuelve a AVAILABLE.
-
-Importante:
-Esta clase NO debe encargarse de base de datos, CLI, pagos ni workers.
-Solo debe contener la lógica del asiento como parte del dominio.
+Esta entidad NO conoce detalles de infraestructura como base de datos,
+Redis, workers o CLI.
 """
+
+from datetime import datetime
+
+from cine_boletos_cli.domain.exceptions.domain_errors import (
+    InvalidSeatStateTransitionError,
+    SeatAlreadyBookedError,
+    SeatLockedError,
+    SeatNotAvailableError,
+)
+from cine_boletos_cli.shared.constants import (
+    AVAILABLE,
+    BOOKED,
+    LOCKED,
+)
 
 
 class Seat:
     """
-    Entidad de dominio que representa un asiento de cine dentro de una función.
+    Representa un asiento perteneciente a una función.
+
+    Parameters
+    ----------
+    seat_id : SeatId
+        Identificador formal del asiento.
+
+    showtime_id : str
+        Identificador de la función.
+
+    status : str
+        Estado actual del asiento.
+
+    lock_id : str | None, optional
+        Identificador del lock activo.
+
+    locked_until : datetime | None, optional
+        Fecha de expiración del lock.
     """
 
     def __init__(
         self,
         seat_id,
         showtime_id,
-        status,
+        status=AVAILABLE,
         lock_id=None,
         locked_until=None,
     ):
-        """
-        Crea un asiento con su identidad y estado actual.
-
-        Args:
-            seat_id:
-                Identificador formal del asiento. Idealmente un Value Object.
-
-            showtime_id:
-                Identificador de la función a la que pertenece este asiento.
-
-            status:
-                Estado actual del asiento. Debe usar los valores oficiales
-                definidos en shared/constants.py.
-
-            lock_id:
-                Identificador del bloqueo temporal, si existe.
-
-            locked_until:
-                Fecha y hora hasta la que el lock sigue siendo válido.
-        """
         self.seat_id = seat_id
         self.showtime_id = showtime_id
         self.status = status
@@ -78,63 +63,156 @@ class Seat:
 
     def is_available(self):
         """
-        Indica si el asiento puede reservarse o comprarse.
+        Indica si el asiento está disponible.
 
-        Debe devolver True solo cuando el asiento esté libre y no tenga un
-        bloqueo activo.
+        Returns
+        -------
+        bool
+            True si el asiento está libre.
         """
-        pass
+
+        if self.status == LOCKED and self.is_lock_expired():
+            self.unlock()
+
+        return self.status == AVAILABLE
+
+    def is_lock_expired(self):
+        """
+        Indica si el bloqueo actual del asiento ya expiró.
+
+        Returns
+        -------
+        bool
+            True si el lock venció.
+            False en cualquier otro caso.
+        """
+
+        if self.status != LOCKED:
+            return False
+
+        if self.locked_until is None:
+            return False
+
+        return datetime.utcnow() > self.locked_until
 
     def lock(self, lock_id, locked_until):
         """
         Bloquea temporalmente el asiento.
 
-        Debe:
-        - validar que el asiento esté disponible,
-        - guardar lock_id,
-        - guardar locked_until,
-        - cambiar el estado a LOCKED.
+        Parameters
+        ----------
+        lock_id : str
+            Identificador único del lock.
 
-        Si el asiento ya está ocupado o bloqueado, debe rechazar la operación.
+        locked_until : datetime
+            Fecha de expiración del lock.
+
+        Raises
+        ------
+        SeatAlreadyBookedError
+            Si el asiento ya fue comprado.
+
+        SeatLockedError
+            Si el asiento ya está bloqueado.
         """
-        pass
+
+        if self.status == LOCKED and self.is_lock_expired():
+            self.unlock()
+
+        if self.status == BOOKED:
+            raise SeatAlreadyBookedError(
+                "No se puede bloquear un asiento ya comprado."
+            )
+
+        if self.status == LOCKED:
+            raise SeatLockedError(
+                "El asiento ya se encuentra bloqueado."
+            )
+
+        self.validate_transition(LOCKED)
+
+        self.status = LOCKED
+        self.lock_id = lock_id
+        self.locked_until = locked_until
 
     def unlock(self):
         """
-        Libera el asiento cuando el lock venció o la compra falló.
+        Libera el lock actual del asiento.
 
-        Debe:
-        - limpiar lock_id,
-        - limpiar locked_until,
-        - devolver el estado a AVAILABLE si corresponde.
-
-        No debería permitir liberar un asiento ya comprado sin una regla clara.
+        Raises
+        ------
+        InvalidSeatStateTransitionError
+            Si el asiento no está bloqueado.
         """
-        pass
+
+        if self.status != LOCKED:
+            raise InvalidSeatStateTransitionError(
+                "Solo un asiento bloqueado puede liberarse."
+            )
+
+        self.validate_transition(AVAILABLE)
+
+        self.status = AVAILABLE
+        self.lock_id = None
+        self.locked_until = None
 
     def book(self):
         """
         Marca el asiento como comprado.
 
-        Debe:
-        - validar que el estado actual permita compra,
-        - cambiar el estado a BOOKED,
-        - dejar el asiento cerrado para futuras reservas.
+        Raises
+        ------
+        SeatNotAvailableError
+            Si el asiento no estaba bloqueado correctamente.
 
-        Si el asiento no estaba bloqueado correctamente, debe lanzar el error
-        de dominio correspondiente.
+        SeatLockedError
+            Si el lock expiró antes de confirmar la compra.
         """
-        pass
+
+        if self.status != LOCKED:
+            raise SeatNotAvailableError(
+                "El asiento debe estar bloqueado antes de comprarse."
+            )
+
+        if self.is_lock_expired():
+            self.unlock()
+
+            raise SeatLockedError(
+                "El lock del asiento expiró."
+            )
+
+        self.validate_transition(BOOKED)
+
+        self.status = BOOKED
+        self.lock_id = None
+        self.locked_until = None
 
     def validate_transition(self, new_status):
         """
-        Valida si el cambio de estado solicitado es permitido.
+        Valida si una transición de estado es válida.
 
-        Ejemplos de transiciones esperadas:
-        - AVAILABLE -> LOCKED
-        - LOCKED -> BOOKED
-        - LOCKED -> AVAILABLE
+        Parameters
+        ----------
+        new_status : str
+            Nuevo estado solicitado.
 
-        Cualquier transición fuera de esas reglas debe rechazarse.
+        Raises
+        ------
+        InvalidSeatStateTransitionError
+            Si la transición no está permitida.
         """
-        pass
+
+        valid_transitions = {
+            AVAILABLE: [LOCKED],
+            LOCKED: [AVAILABLE, BOOKED],
+            BOOKED: [],
+        }
+
+        allowed = valid_transitions.get(self.status, [])
+
+        if new_status not in allowed:
+            raise InvalidSeatStateTransitionError(
+                f"Transición inválida: {self.status} -> {new_status}"
+            )
+
+        return True
