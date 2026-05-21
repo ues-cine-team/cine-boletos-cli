@@ -1,45 +1,71 @@
 """
-Este archivo define la entidad Booking.
+booking.py
 
-¿Por qué existe?
-Porque una compra de boletos no es solo un dato suelto. Necesitamos una entidad
-que represente toda la reserva: quién la hizo, para qué función, qué asientos
-incluye, cuánto cuesta y en qué estado se encuentra.
+Entidad de dominio que representa una reserva o compra de boletos.
 
-¿Cómo se usará más adelante?
-- `booking_service.py` usará Booking para coordinar la compra y la cancelación.
-- `payment_service.py` se apoyará en el estado del booking para saber si puede
-  cobrarse, confirmarse o revertirse.
-- `booking_repository.py` guardará y recuperará esta entidad.
-- `seat.py` se relacionará con Booking porque un booking agrupa varios asientos.
+Booking encapsula las reglas principales relacionadas con:
+- estado de la reserva,
+- estado del pago,
+- confirmación,
+- cancelación,
+- consistencia de la compra.
 
-Qué debe resolver esta entidad:
-- representar una reserva o compra,
-- mantener consistencia entre asientos, total y estado,
-- permitir confirmar o cancelar de forma válida,
-- evitar transiciones ilegales.
-
-Estados esperados:
-- PENDING: la reserva existe pero aún no está confirmada.
-- CONFIRMED: el pago fue exitoso y la compra quedó cerrada.
-- CANCELLED: la reserva fue anulada.
-
-Idea importante:
-Booking no debe encargarse de cobrar, guardar en base de datos ni hablar con
-la consola. Solo debe contener reglas del dominio relacionadas con la reserva.
+Esta entidad NO conoce detalles de infraestructura como base de datos,
+pasarelas de pago, Redis, workers o CLI.
 """
 
 from datetime import datetime
-from typing import List, Optional
 
-# Se espera que más adelante se usen los value objects oficiales.
-# from cine_boletos_cli.domain.value_objects.money import Money
-# from cine_boletos_cli.domain.value_objects.seat_id import SeatId
+from cine_boletos_cli.domain.exceptions.domain_errors import (
+    BookingAlreadyCancelledError,
+    BookingAlreadyConfirmedError,
+    InvalidBookingStateError,
+)
+from cine_boletos_cli.shared.constants import (
+    BOOKING_CANCELLED,
+    BOOKING_CONFIRMED,
+    BOOKING_PENDING,
+    PAYMENT_FAILED,
+    PAYMENT_PAID,
+    PAYMENT_PENDING,
+)
 
 
 class Booking:
     """
-    Entidad del dominio que representa una reserva o compra de boletos.
+    Representa una reserva de boletos dentro del sistema.
+
+    Parameters
+    ----------
+    booking_id : str
+        Identificador único de la reserva.
+
+    customer_id : str
+        Identificador del cliente.
+
+    showtime_id : str
+        Identificador de la función.
+
+    seat_ids : list
+        Lista de asientos asociados.
+
+    total_amount : Money
+        Monto total de la reserva.
+
+    status : str
+        Estado actual del booking.
+
+    payment_status : str
+        Estado actual del pago.
+
+    created_at : datetime
+        Fecha de creación.
+
+    updated_at : datetime, optional
+        Fecha de última modificación.
+
+    idempotency_key : str, optional
+        Clave de idempotencia de la operación.
     """
 
     def __init__(
@@ -49,130 +75,168 @@ class Booking:
         showtime_id,
         seat_ids,
         total_amount,
-        status,
-        payment_status,
-        created_at: datetime,
-        updated_at: Optional[datetime] = None,
-        idempotency_key: Optional[str] = None,
+        status=BOOKING_PENDING,
+        payment_status=PAYMENT_PENDING,
+        created_at=None,
+        updated_at=None,
+        idempotency_key=None,
     ):
-        """
-        Inicializa un booking con sus datos principales.
-
-        Args:
-            booking_id:
-                Identificador formal de la reserva.
-
-            customer_id:
-                Identificador del cliente que realizó la reserva.
-
-            showtime_id:
-                Identificador de la función asociada.
-
-            seat_ids:
-                Lista de identificadores de los asientos incluidos en la compra.
-
-            total_amount:
-                Monto total calculado para la reserva.
-
-            status:
-                Estado actual del booking.
-
-            payment_status:
-                Estado del pago asociado.
-
-            created_at:
-                Fecha y hora en que se creó la reserva.
-
-            updated_at:
-                Fecha y hora de la última actualización.
-
-            idempotency_key:
-                Clave usada para evitar duplicar operaciones.
-        """
         self.booking_id = booking_id
         self.customer_id = customer_id
         self.showtime_id = showtime_id
         self.seat_ids = seat_ids
         self.total_amount = total_amount
+
         self.status = status
         self.payment_status = payment_status
-        self.created_at = created_at
-        self.updated_at = updated_at or created_at
+
+        self.created_at = created_at or datetime.utcnow()
+        self.updated_at = updated_at or self.created_at
+
         self.idempotency_key = idempotency_key
 
     def calculate_total(self):
         """
-        Calcula o devuelve el total de la reserva.
+        Devuelve el monto total de la reserva.
 
-        Más adelante este método puede apoyarse en:
-        - precio base de la función,
-        - cantidad de asientos,
-        - descuentos o recargos.
-
-        Por ahora solo deja clara la intención del método.
+        Returns
+        -------
+        Money
+            Total asociado al booking.
         """
-        pass
+
+        return self.total_amount
 
     def confirm(self):
         """
         Confirma la reserva.
 
-        Debe:
-        - validar que el booking esté en un estado que permita confirmación,
-        - cambiar el estado a CONFIRMED,
-        - marcar el pago como exitoso si corresponde.
+        Raises
+        ------
+        BookingAlreadyCancelledError
+            Si la reserva ya fue cancelada.
 
-        Si el booking ya fue cancelado o no está listo, debe rechazar la acción.
+        BookingAlreadyConfirmedError
+            Si la reserva ya fue confirmada.
+
+        InvalidBookingStateError
+            Si el pago todavía no fue completado.
         """
-        pass
+
+        if self.status == BOOKING_CANCELLED:
+            raise BookingAlreadyCancelledError(
+                "No se puede confirmar una reserva cancelada."
+            )
+
+        if self.status == BOOKING_CONFIRMED:
+            raise BookingAlreadyConfirmedError(
+                "La reserva ya fue confirmada."
+            )
+
+        if self.payment_status != PAYMENT_PAID:
+            raise InvalidBookingStateError(
+                "La reserva no puede confirmarse sin pago exitoso."
+            )
+
+        self.validate_transition(BOOKING_CONFIRMED)
+
+        self.status = BOOKING_CONFIRMED
+        self.updated_at = datetime.utcnow()
 
     def cancel(self):
         """
         Cancela la reserva.
 
-        Debe:
-        - validar que todavía se pueda cancelar,
-        - cambiar el estado a CANCELLED,
-        - dejar listo al sistema para liberar asientos o compensar si hace falta.
+        Raises
+        ------
+        BookingAlreadyCancelledError
+            Si la reserva ya fue cancelada.
+
+        BookingAlreadyConfirmedError
+            Si la reserva ya fue confirmada.
         """
-        pass
+
+        if self.status == BOOKING_CANCELLED:
+            raise BookingAlreadyCancelledError(
+                "La reserva ya fue cancelada."
+            )
+
+        if self.status == BOOKING_CONFIRMED:
+            raise BookingAlreadyConfirmedError(
+                "No se puede cancelar una reserva confirmada."
+            )
+
+        self.validate_transition(BOOKING_CANCELLED)
+
+        self.status = BOOKING_CANCELLED
+        self.updated_at = datetime.utcnow()
 
     def mark_payment_pending(self):
         """
         Marca el pago como pendiente.
-
-        Se usa cuando la reserva ya existe pero el pago todavía no fue confirmado.
         """
-        pass
+
+        self.payment_status = PAYMENT_PENDING
+        self.updated_at = datetime.utcnow()
 
     def mark_paid(self):
         """
-        Marca el pago como completado.
+        Marca el pago como exitoso.
         """
-        pass
+
+        self.payment_status = PAYMENT_PAID
+        self.updated_at = datetime.utcnow()
 
     def mark_failed(self):
         """
         Marca el pago como fallido.
         """
-        pass
+
+        self.payment_status = PAYMENT_FAILED
+        self.updated_at = datetime.utcnow()
 
     def is_cancellable(self):
         """
-        Indica si el booking todavía puede cancelarse.
+        Indica si la reserva todavía puede cancelarse.
 
-        Más adelante esta lógica dependerá del estado actual de la reserva.
+        Returns
+        -------
+        bool
+            True si el booking sigue pendiente.
         """
-        pass
+
+        return self.status == BOOKING_PENDING
 
     def validate_transition(self, new_status):
         """
-        Valida si el cambio de estado es permitido.
+        Valida si una transición de estado es válida.
 
-        Ejemplos esperados:
-        - PENDING -> CONFIRMED
-        - PENDING -> CANCELLED
+        Parameters
+        ----------
+        new_status : str
+            Estado destino.
 
-        Cambios inválidos deben rechazarse para no romper la consistencia.
+        Raises
+        ------
+        InvalidBookingStateError
+            Si la transición no es válida.
         """
-        pass
+
+        valid_transitions = {
+            BOOKING_PENDING: [
+                BOOKING_CONFIRMED,
+                BOOKING_CANCELLED,
+            ],
+            BOOKING_CONFIRMED: [],
+            BOOKING_CANCELLED: [],
+        }
+
+        allowed = valid_transitions.get(self.status, [])
+
+        if new_status not in allowed:
+            raise InvalidBookingStateError(
+                f"Transición inválida: "
+                f"{self.status} -> {new_status}"
+            )
+
+        return True
