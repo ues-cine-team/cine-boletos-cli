@@ -22,9 +22,10 @@ Este objeto no debe:
 - ejecutar lógica externa al dominio.
 """
 
+from decimal import Decimal
+
 from cine_boletos_cli.domain.exceptions.domain_errors import CurrencyMismatchError
 from cine_boletos_cli.shared.constants import DEFAULT_CURRENCY
-from decimal import Decimal
 
 
 class Money:
@@ -44,6 +45,7 @@ class Money:
     >>> Money("10.50", "USD")
     >>> Money(20, "EUR")
     """
+    VALID_TYPES = (str, int, Decimal)
 
     def __init__(self, amount, currency=DEFAULT_CURRENCY):
         """
@@ -57,6 +59,12 @@ class Money:
         currency : str
             Código de moneda.
         """
+
+        if not isinstance(amount, self.VALID_TYPES):
+            raise TypeError(
+                "amount debe ser str, int o Decimal."
+            )
+
 
         self.amount = Decimal(amount)
         self.currency = currency
