@@ -1,16 +1,13 @@
 """
 Este archivo define el contrato del repositorio de películas.
-
 ¿Por qué existe?
 Porque la entidad Movie no debe saber cómo se guarda ni cómo se consulta desde
 una base de datos. Esa responsabilidad se separa aquí para mantener el dominio
 limpio y evitar mezclar reglas de negocio con detalles técnicos.
-
 ¿Cómo se usará más adelante?
 - `movie_service.py` usará este repositorio para crear, actualizar y consultar películas.
 - `showtime_service.py` lo usará para validar que una función se cree sobre una película válida.
 - futuros módulos de cartelera o administración podrían usarlo para búsquedas y reportes.
-
 Qué debe resolver este repositorio:
 - guardar películas,
 - recuperar películas por ID,
@@ -18,14 +15,12 @@ Qué debe resolver este repositorio:
 - listar todo el catálogo,
 - buscar películas por título,
 - actualizar cambios de estado o metadata.
-
 Importante:
 Este archivo NO debe decidir:
 - si una película puede archivarse,
 - si un título es válido,
 - si la duración está bien,
 - ni si el cambio de estado es correcto.
-
 Eso pertenece a la entidad Movie y a los servicios del dominio.
 El repositorio solo guarda, recupera y actualiza datos.
 """
@@ -33,43 +28,38 @@ El repositorio solo guarda, recupera y actualiza datos.
 
 class MovieRepository:
     """
-    Contrato del repositorio de películas.
-
-    Más adelante aquí irá la implementación real de persistencia.
+    Repositorio de películas en memoria.
+    Usa un diccionario interno para simular persistencia.
     """
+
+    def __init__(self):
+        # Diccionario: movie_id -> objeto Movie
+        self._storage = {}
 
     def save(self, movie):
         """
         Guarda o actualiza una película.
 
-        Debe usarse cuando:
-        - se crea una nueva película,
-        - se cambia el título,
-        - se actualiza la descripción,
-        - se archiva,
-        - o se corrige cualquier dato persistido.
-
         Args:
-            movie:
-                Entidad Movie ya validada por el dominio.
+            movie: Entidad Movie ya validada por el dominio.
 
         Returns:
             Movie: la película persistida.
         """
-        pass
+        self._storage[movie.id] = movie
+        return movie
 
     def get_by_id(self, movie_id):
         """
         Busca una película por su identificador.
 
         Args:
-            movie_id:
-                Identificador formal de la película.
+            movie_id: Identificador formal de la película.
 
         Returns:
             Movie | None: la película encontrada o None si no existe.
         """
-        pass
+        return self._storage.get(movie_id, None)
 
     def list_all(self):
         """
@@ -78,45 +68,42 @@ class MovieRepository:
         Returns:
             list[Movie]: lista completa de películas.
         """
-        pass
+        return list(self._storage.values())
 
     def list_active(self):
         """
         Devuelve solo las películas activas.
 
-        Esto permitirá más adelante:
-        - mostrar catálogo disponible,
-        - crear funciones sobre películas válidas,
-        - construir cartelera pública.
-
         Returns:
             list[Movie]: películas activas.
         """
-        pass
+        return [
+            movie for movie in self._storage.values()
+            if getattr(movie, "is_active", False)
+        ]
 
     def search_by_title(self, title):
         """
         Busca películas por título o coincidencia parcial.
 
         Args:
-            title:
-                Texto de búsqueda.
+            title: Texto de búsqueda.
 
         Returns:
             list[Movie]: películas que coinciden con la búsqueda.
         """
-        pass
+        title_lower = title.lower()
+        return [
+            movie for movie in self._storage.values()
+            if title_lower in getattr(movie, "title", "").lower()
+        ]
 
     def delete(self, movie_id):
         """
-        Elimina una película o la marca como inactiva,
-        según la estrategia del sistema.
+        Elimina una película del almacenamiento.
 
         Args:
-            movie_id:
-                Identificador de la película.
-
-        Returns:
-            None
+            movie_id: Identificador de la película.
         """
-        pass
+        if movie_id in self._storage:
+            del self._storage[movie_id]
