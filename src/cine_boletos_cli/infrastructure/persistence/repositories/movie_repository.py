@@ -46,7 +46,7 @@ class MovieRepository:
         Returns:
             Movie: la película persistida.
         """
-        self._storage[movie.id] = movie
+        self._storage[movie.movie_id] = movie
         return movie
 
     def get_by_id(self, movie_id):
