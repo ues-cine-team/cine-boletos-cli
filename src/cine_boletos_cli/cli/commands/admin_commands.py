@@ -263,7 +263,14 @@ class AdminCommands:
         print("\nCREATE MOVIE")
 
         title = input("Title: ").strip()
-        duration = input("Duration (minutes): ").strip()
+        try:
+            duration = int(
+                input("Duration (minutes): ").strip()
+            )
+        except ValueError:
+            print("\nDuration must be a number.")
+            self._pause()
+            return
         classification = input("Classification: ").strip()
 
         try:
