@@ -184,61 +184,104 @@ class MovieCommands:
             self._pause()
             return
 
-        seats = (
-            self.showtime_seat_repository
-            .list_by_showtime(
-                showtime.showtime_id
-            )
-        )
-
-        if not seats:
-            print("\nNo seats available for this showtime.")
-            self._pause()
-            return
-
-        print("\n" + "=" * 50)
-        print("                SEAT MAP")
-        print("=" * 50)
-
-        seats_by_row = {}
-
-        for seat in seats:
-            label = seat.seat_id.split("-")[-1]
-            row = label[0]
-
-            seats_by_row.setdefault(
-                row,
-                [],
-            ).append(seat)
-
-        for row in sorted(seats_by_row.keys()):
-            row_seats = sorted(
-                seats_by_row[row],
-                key=lambda seat: int(
-                    seat.seat_id.split("-")[-1][1:]
-                ),
+        while True:
+            seats = (
+                self.showtime_seat_repository
+                .list_by_showtime(
+                    showtime.showtime_id
+                )
             )
 
-            labels = []
+            if not seats:
+                print("\nNo seats available for this showtime.")
+                self._pause()
+                return
 
-            for seat in row_seats:
+            print("\n" + "=" * 50)
+            print("                SEAT MAP")
+            print("=" * 50)
+
+            seats_by_row = {}
+
+            for seat in seats:
                 label = seat.seat_id.split("-")[-1]
+                row = label[0]
 
-                if seat.is_available():
-                    labels.append(label)
-                elif seat.is_locked():
-                    labels.append(f"{label}[L]")
-                elif seat.is_booked():
-                    labels.append(f"{label}[B]")
+                seats_by_row.setdefault(
+                    row,
+                    [],
+                ).append(seat)
 
-            print("  ".join(labels))
+            for row in sorted(seats_by_row.keys()):
+                row_seats = sorted(
+                    seats_by_row[row],
+                    key=lambda seat: int(
+                        seat.seat_id.split("-")[-1][1:]
+                    ),
+                )
 
-        print("\nLegend:")
-        print("[L] Locked")
-        print("[B] Booked")
-        print("No mark = Available")
+                labels = []
 
-        self._pause()
+                for seat in row_seats:
+                    label = seat.seat_id.split("-")[-1]
+
+                    if seat.is_available():
+                        labels.append(label)
+                    elif seat.is_locked():
+                        labels.append(f"{label}[L]")
+                    elif seat.is_booked():
+                        labels.append(f"{label}[B]")
+
+                print("  ".join(labels))
+
+            print("\nLegend:")
+            print("[L] Locked")
+            print("[B] Booked")
+            print("No mark = Available")
+            print("\n0. Back")
+
+            selected_label = input(
+                "\nSelect a seat to lock: "
+            ).strip().upper()
+
+            if selected_label == "0":
+                return
+
+            seat_id = (
+                f"{showtime.room_id}-"
+                f"{selected_label}"
+            )
+
+            showtime_seat = (
+                self.showtime_seat_repository
+                .get_by_showtime_and_seat_id(
+                    showtime_id=showtime.showtime_id,
+                    seat_id=seat_id,
+                )
+            )
+
+            if showtime_seat is None:
+                print("\nSeat not found.")
+                self._pause()
+                continue
+
+            try:
+                showtime_seat.lock()
+
+                self.showtime_seat_repository.save(
+                    showtime_seat
+                )
+
+                print(
+                    f"\nSeat {selected_label} "
+                    "locked successfully."
+                )
+
+            except Exception as exc:
+                print("\nCould not lock seat.")
+                print(str(exc))
+
+            self._pause()
 
     def _handle_invalid_option(self) -> None:
         print("\nInvalid option. Please try again.")

@@ -32,6 +32,23 @@ class ShowtimeSeatRepository:
             showtime_seat_id
         )
 
+    def get_by_showtime_and_seat_id(
+        self,
+        showtime_id,
+        seat_id,
+    ):
+        """
+        Recupera un asiento específico dentro de una función.
+        """
+        for seat in self._storage.values():
+            if (
+                seat.showtime_id == showtime_id
+                and seat.seat_id == seat_id
+            ):
+                return seat
+
+        return None
+
     def list_all(self):
         """
         Devuelve todos los registros.
