@@ -13,11 +13,13 @@ class MovieCommands:
         movie_service,
         showtime_service=None,
         showtime_seat_repository=None,
+        booking_service=None,
         logger=None,
     ):
         self.movie_service = movie_service
         self.showtime_service = showtime_service
         self.showtime_seat_repository = showtime_seat_repository
+        self.booking_service = booking_service
         self.logger = logger
 
         self.is_running = False
@@ -37,26 +39,26 @@ class MovieCommands:
 
     def _render_movies_menu(self) -> None:
         print("\n" + "=" * 50)
-        print("                    MOVIES")
+        print("                  PELÍCULAS")
         print("=" * 50)
 
         movies = self._load_movies()
 
         if not movies:
-            print("\nNo movies available.")
-            print("\n0. Back")
+            print("\nNo hay películas disponibles.")
+            print("\n0. Regresar")
             return
 
         for index, movie in enumerate(movies, start=1):
             print(f"{index}. {movie.title}")
 
-        print("\n0. Back")
+        print("\n0. Regresar")
 
     def _load_movies(self) -> List:
         return self.movie_service.list_movies()
 
     def _read_user_option(self) -> str:
-        return input("\nSelect a movie: ").strip()
+        return input("\nSeleccione una película: ").strip()
 
     def _handle_movies_option(
         self,
@@ -87,17 +89,17 @@ class MovieCommands:
         movie,
     ) -> None:
         print("\n" + "=" * 50)
-        print(f"TITLE: {movie.title}")
+        print(f"PELÍCULA: {movie.title}")
         print("=" * 50)
 
-        print(f"Duration: {movie.duration_minutes} minutes")
-        print(f"Classification: {movie.classification}")
+        print(f"Duración: {movie.duration_minutes} minutos")
+        print(f"Clasificación: {movie.classification}")
 
         if getattr(movie, "genre", None):
-            print(f"Genre: {movie.genre}")
+            print(f"Género: {movie.genre}")
 
         if getattr(movie, "description", None):
-            print(f"\nDescription:\n{movie.description}")
+            print(f"\nDescripción:\n{movie.description}")
 
         self._render_movie_actions(movie)
 
@@ -105,10 +107,10 @@ class MovieCommands:
         self,
         movie,
     ) -> None:
-        print("\n1. View Showtimes")
-        print("0. Back")
+        print("\n1. Ver funciones")
+        print("0. Regresar")
 
-        option = input("\nSelect an option: ").strip()
+        option = input("\nSeleccione una opción: ").strip()
 
         if option == "1":
             self._open_movie_showtimes(movie)
@@ -118,7 +120,7 @@ class MovieCommands:
         movie,
     ) -> None:
         if self.showtime_service is None:
-            print("\nShowtime service unavailable.")
+            print("\nServicio de funciones no disponible.")
             return
 
         showtimes = (
@@ -129,26 +131,26 @@ class MovieCommands:
         )
 
         if not showtimes:
-            print("\nNo showtimes available.")
+            print("\nNo hay funciones disponibles.")
             self._pause()
             return
 
         print(
-            f"\nSHOWTIMES FOR "
+            f"\nFUNCIONES DE "
             f"{movie.title.upper()}"
         )
         print("-" * 50)
 
         for index, showtime in enumerate(showtimes, start=1):
             print(f"{index}.")
-            print(f"Showtime ID: {showtime.showtime_id}")
-            print(f"Room: {showtime.room_id}")
-            print(f"Starts: {showtime.starts_at}")
+            print(f"ID de función: {showtime.showtime_id}")
+            print(f"Sala: {showtime.room_id}")
+            print(f"Inicio: {showtime.starts_at}")
             print("-" * 50)
 
         option = input(
-            "\nSelect a showtime to view seats "
-            "(0. Back): "
+            "\nSeleccione una función para ver asientos "
+            "(0. Regresar): "
         ).strip()
 
         if option == "0":
@@ -180,7 +182,7 @@ class MovieCommands:
         showtime,
     ) -> None:
         if self.showtime_seat_repository is None:
-            print("\nSeat map unavailable.")
+            print("\nMapa de asientos no disponible.")
             self._pause()
             return
 
@@ -193,12 +195,12 @@ class MovieCommands:
             )
 
             if not seats:
-                print("\nNo seats available for this showtime.")
+                print("\nNo hay asientos para esta función.")
                 self._pause()
                 return
 
             print("\n" + "=" * 50)
-            print("                SEAT MAP")
+            print("            MAPA DE ASIENTOS")
             print("=" * 50)
 
             seats_by_row = {}
@@ -234,57 +236,151 @@ class MovieCommands:
 
                 print("  ".join(labels))
 
-            print("\nLegend:")
-            print("[L] Locked")
-            print("[B] Booked")
-            print("No mark = Available")
-            print("\n0. Back")
+            print("\nLeyenda:")
+            print("[L] Bloqueado")
+            print("[B] Comprado")
+            print("Sin marca = Disponible")
+            print("\n0. Regresar")
 
-            selected_label = input(
-                "\nSelect a seat to lock: "
+            selected_input = input(
+                "\nSeleccione los asientos separados por coma "
+                "(ejemplo: A1,B2,C1): "
             ).strip().upper()
 
-            if selected_label == "0":
+            if selected_input == "0":
                 return
 
-            seat_id = (
-                f"{showtime.room_id}-"
-                f"{selected_label}"
-            )
+            selected_labels = [
+                value.strip()
+                for value in selected_input.split(",")
+                if value.strip()
+            ]
 
-            showtime_seat = (
-                self.showtime_seat_repository
-                .get_by_showtime_and_seat_id(
-                    showtime_id=showtime.showtime_id,
-                    seat_id=seat_id,
-                )
-            )
-
-            if showtime_seat is None:
-                print("\nSeat not found.")
+            if not selected_labels:
+                print("\nNo seleccionó asientos.")
                 self._pause()
                 continue
 
-            try:
-                showtime_seat.lock()
+            seat_ids = [
+                f"{showtime.room_id}-{label}"
+                for label in selected_labels
+            ]
 
-                self.showtime_seat_repository.save(
-                    showtime_seat
+            locked_seats = []
+
+            try:
+                for seat_id in seat_ids:
+                    showtime_seat = (
+                        self.showtime_seat_repository
+                        .get_by_showtime_and_seat_id(
+                            showtime_id=showtime.showtime_id,
+                            seat_id=seat_id,
+                        )
+                    )
+
+                    if showtime_seat is None:
+                        raise ValueError(
+                            f"Asiento '{seat_id}' no encontrado."
+                        )
+
+                    if showtime_seat.is_booked():
+                        raise ValueError(
+                            f"Asiento '{seat_id}' ya fue comprado."
+                        )
+
+                    if showtime_seat.is_locked():
+                        raise ValueError(
+                            f"Asiento '{seat_id}' ya está bloqueado."
+                        )
+
+                    showtime_seat.lock()
+
+                    self.showtime_seat_repository.save(
+                        showtime_seat
+                    )
+
+                    locked_seats.append(
+                        showtime_seat
+                    )
+
+                print("\nAsientos bloqueados temporalmente:")
+                for label in selected_labels:
+                    print(f"- {label}")
+
+                print("\n1. Confirmar compra")
+                print("0. Cancelar")
+
+                option = input(
+                    "\nSeleccione una opción: "
+                ).strip()
+
+                if option == "0":
+                    for showtime_seat in locked_seats:
+                        showtime_seat.release()
+
+                        self.showtime_seat_repository.save(
+                            showtime_seat
+                        )
+
+                    print("\nCompra cancelada. Asientos liberados.")
+                    self._pause()
+                    continue
+
+                if option != "1":
+                    self._handle_invalid_option()
+
+                    for showtime_seat in locked_seats:
+                        showtime_seat.release()
+
+                        self.showtime_seat_repository.save(
+                            showtime_seat
+                        )
+
+                    self._pause()
+                    continue
+
+                if self.booking_service is None:
+                    raise ValueError(
+                        "Servicio de reservas no disponible."
+                    )
+
+                booking = (
+                    self.booking_service
+                    .create_booking_from_locked_seats(
+                        customer_id="guest",
+                        showtime_id=showtime.showtime_id,
+                        seat_ids=seat_ids,
+                    )
                 )
 
+                print("\nCompra registrada correctamente.")
+                print(f"ID de reserva: {booking.booking_id}")
+                print("Asientos:")
+
+                for label in selected_labels:
+                    print(f"- {label}")
+
                 print(
-                    f"\nSeat {selected_label} "
-                    "locked successfully."
+                    f"Total: {booking.total_amount.amount} "
+                    f"{booking.total_amount.currency}"
                 )
 
             except Exception as exc:
-                print("\nCould not lock seat.")
+                print("\nNo se pudo completar la compra.")
                 print(str(exc))
+
+                for showtime_seat in locked_seats:
+                    if showtime_seat.is_locked():
+                        showtime_seat.release()
+
+                        self.showtime_seat_repository.save(
+                            showtime_seat
+                        )
 
             self._pause()
 
     def _handle_invalid_option(self) -> None:
-        print("\nInvalid option. Please try again.")
+        print("\nOpción inválida.")
 
     def _pause(self) -> None:
-        input("\nPress ENTER to continue...")
+        input("\nPresione ENTER para continuar...")

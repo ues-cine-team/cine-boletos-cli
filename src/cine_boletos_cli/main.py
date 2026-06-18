@@ -10,6 +10,10 @@ from cine_boletos_cli.infrastructure.persistence.repositories.showtime_seat_repo
     ShowtimeSeatRepository,
 )
 
+from cine_boletos_cli.infrastructure.persistence.repositories.booking_repository import (
+    BookingRepository,
+)
+
 from cine_boletos_cli.infrastructure.persistence.repositories.room_repository import (
     RoomRepository,
 )
@@ -24,6 +28,10 @@ from cine_boletos_cli.application.services.movie_service import (
 
 from cine_boletos_cli.application.services.showtime_service import (
     ShowtimeService,
+)
+
+from cine_boletos_cli.application.services.booking_service import (
+    BookingService,
 )
 
 from cine_boletos_cli.application.services.room_service import (
@@ -73,6 +81,8 @@ def main():
         ShowtimeSeatRepository()
     )
 
+    booking_repository = BookingRepository()
+
     room_repository = RoomRepository()
 
     seat_repository = SeatRepository()
@@ -94,6 +104,12 @@ def main():
         showtime_repository=showtime_repository,
         movie_repository=movie_repository,
         seat_repository=seat_repository,
+        showtime_seat_repository=showtime_seat_repository,
+    )
+
+    booking_service = BookingService(
+        booking_repository=booking_repository,
+        showtime_repository=showtime_repository,
         showtime_seat_repository=showtime_seat_repository,
     )
 
@@ -149,6 +165,7 @@ def main():
         showtime_seat_repository=(
             showtime_seat_repository
         ),
+        booking_service=booking_service,
     )
 
     admin_commands = AdminCommands(
@@ -156,7 +173,7 @@ def main():
         create_showtime_use_case=create_showtime_use_case,
         movie_service=movie_service,
         showtime_service=showtime_service,
-        booking_service=None,
+        booking_service=booking_service,
     )
 
     # ==================================================
@@ -178,6 +195,11 @@ def main():
     print(
         "Showtime seats:",
         showtime_seat_repository.count(),
+    )
+
+    print(
+        "Bookings:",
+        booking_repository.count(),
     )
 
 

@@ -378,34 +378,44 @@ class AdminCommands:
 
     def _view_bookings(self) -> None:
         """
-        Muestra bookings registrados.
-
-        Notes
-        -----
-        Más adelante este método podrá:
-        - filtrar reservas,
-        - mostrar revenue,
-        - mostrar estados,
-        - exportar reportes.
+        Muestra reservas registradas.
         """
-        print("\nBOOKINGS")
+        print("\nRESERVAS")
         print("-" * 50)
+
+        if self.booking_service is None:
+            print("Servicio de reservas no disponible.")
+            self._pause()
+            return
 
         bookings = self.booking_service.list_bookings()
 
         if not bookings:
-            print("No bookings available.")
+            print("No hay reservas registradas.")
             self._pause()
             return
 
         for booking in bookings:
+            seat_labels = [
+                seat_id.split("-")[-1]
+                for seat_id in booking.seat_ids
+            ]
+
+            print(f"ID: {booking.booking_id}")
+            print(f"Cliente: {booking.customer_id}")
+            print(f"Función: {booking.showtime_id}")
+            print(f"Asientos: {', '.join(seat_labels)}")
             print(
-                f"- Booking {booking.booking_id} "
-                f"({booking.status})"
+                f"Total: {booking.total_amount.amount} "
+                f"{booking.total_amount.currency}"
             )
+            print(f"Estado: {booking.status}")
+            print(f"Pago: {booking.payment_status}")
+            print("-" * 50)
 
         self._pause()
-
+    
+    
     def _handle_invalid_option(self) -> None:
         """
         Maneja opciones inválidas.
