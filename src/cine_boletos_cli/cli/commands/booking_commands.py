@@ -1,534 +1,458 @@
-"""
-BookingCommands.
-
-Este archivo define el módulo interactivo relacionado con reservas y compra de
-tickets dentro de la aplicación CLI.
-
-IMPORTANTE
-----------
-Este archivo representa:
-- navegación interactiva,
-- flujo guiado,
-- experiencia de compra,
-- pantallas CLI.
-
-NO representa:
-- lógica de negocio,
-- persistencia,
-- pagos reales,
-- locking real.
-
-Toda lógica operacional vive en:
-- services,
-- use cases,
-- entidades del dominio.
-
-Este módulo solamente:
-- guía al usuario,
-- muestra información,
-- recibe input,
-- delega operaciones.
-
-¿Por qué existe?
-----------------
-Porque comprar tickets es el flujo principal del sistema.
-
-Este módulo será responsable de:
-- selección de seats,
-- visualización de disponibilidad,
-- confirmación de compra,
-- inicio de pagos,
-- cancelaciones,
-- navegación del flujo de booking.
-
-Responsabilidad principal
--------------------------
-Coordinar interacción CLI relacionada con bookings.
-
-Relación con otros módulos
---------------------------
-Este módulo trabajará junto con:
-
-- `PurchaseTicketsUseCase`
-    Flujo principal de compra.
-
-- `BookingService`
-    Operaciones de reservas.
-
-- `SeatService`
-    Disponibilidad y selección.
-
-- `PaymentService`
-    Flujo de pagos.
-
-- `BookingDTO`
-    Transporte de reservas.
-
-- `ShowtimeDTO`
-    Información de funciones.
-
-- `ShowtimeCommands`
-    Navegación desde funciones.
-
-Qué debe resolver este módulo
------------------------------
-- renderizar mapa de seats,
-- permitir selección,
-- confirmar compra,
-- iniciar pagos,
-- mostrar resultados,
-- manejar navegación visual.
-
-Qué NO debe hacer
------------------
-- No debe bloquear seats directamente.
-- No debe modificar entidades.
-- No debe acceder a repositories.
-- No debe manejar transacciones.
-- No debe contener reglas del dominio.
-
-Cómo debe sentirse
-------------------
-Como una aplicación real de compra de tickets.
-
-Ejemplo conceptual:
-
-==================================================
-            SELECT YOUR SEATS
-==================================================
-
-SCREEN THIS WAY
---------------------------------
-
-A [ ] [ ] [X] [ ]
-B [ ] [X] [ ] [ ]
-C [ ] [ ] [ ] [ ]
-
-[ ] available
-[X] booked
-
-Select seats:
-
-Importante
-----------
-Este archivo representa la experiencia interactiva principal del sistema.
-"""
-
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List
 
 
 class BookingCommands:
     """
-    Módulo interactivo de bookings y compra.
-
-    Notes
-    -----
-    Esta clase coordina:
-    - selección de seats,
-    - flujo de compra,
-    - confirmaciones,
-    - pagos,
-    - navegación de booking.
+    Flujo interactivo de compra de boletos.
     """
 
     def __init__(
         self,
-        purchase_tickets_use_case,
+        movie_service,
+        showtime_service,
+        showtime_seat_service,
         booking_service,
-        seat_service,
-        payment_service,
         logger=None,
     ):
-        """
-        Inicializa módulo de booking.
-
-        Parameters
-        ----------
-        purchase_tickets_use_case : object
-            Caso de uso principal de compra.
-
-        booking_service : object
-            Servicio de reservas.
-
-        seat_service : object
-            Servicio de asientos.
-
-        payment_service : object
-            Servicio de pagos.
-
-        logger : object, optional
-            Sistema de logging.
-        """
-        self.purchase_tickets_use_case = purchase_tickets_use_case
+        self.movie_service = movie_service
+        self.showtime_service = showtime_service
+        self.showtime_seat_service = showtime_seat_service
         self.booking_service = booking_service
-        self.seat_service = seat_service
-        self.payment_service = payment_service
         self.logger = logger
 
         self.is_running = False
 
-    def run(
-        self,
-        showtime_id: Optional[str] = None,
-    ) -> None:
-        """
-        Ejecuta flujo interactivo de booking.
-
-        Parameters
-        ----------
-        showtime_id : str, optional
-            Función objetivo.
-
-        Flujo esperado
-        --------------
-        1. cargar seats,
-        2. renderizar mapa,
-        3. seleccionar seats,
-        4. confirmar selección,
-        5. iniciar pago,
-        6. completar booking,
-        7. mostrar resultado.
-        """
+    def run(self) -> None:
         self.is_running = True
 
         while self.is_running:
-            self._render_booking_screen(showtime_id)
+            self._render_movies_menu()
 
-            selected_seats = self._read_seat_selection()
-
-            if not selected_seats:
-                self.stop()
-                continue
-
-            self._confirm_booking_flow(
-                showtime_id=showtime_id,
-                selected_seats=selected_seats,
+            option = self._read_user_option(
+                "\nSeleccione una película: "
             )
 
+            self._handle_movie_selection(option)
+
     def stop(self) -> None:
-        """
-        Finaliza flujo actual.
-        """
         self.is_running = False
 
-    def _render_booking_screen(
-        self,
-        showtime_id: Optional[str],
-    ) -> None:
-        """
-        Renderiza pantalla principal de selección.
-
-        Parameters
-        ----------
-        showtime_id : str, optional
-            Función activa.
-
-        Notes
-        -----
-        Más adelante este método podrá:
-        - renderizar mapas reales,
-        - mostrar estados en tiempo real,
-        - mostrar pricing dinámico,
-        - mostrar leyendas visuales.
-        """
+    def _render_movies_menu(self) -> None:
         print("\n" + "=" * 50)
-        print("            SELECT YOUR SEATS")
+        print("              COMPRA DE BOLETOS")
         print("=" * 50)
 
-        print("\nSCREEN THIS WAY")
-        print("-" * 32)
+        movies = self._load_movies()
 
-        seat_map = self._load_seat_map(showtime_id)
+        if not movies:
+            print("\nNo hay películas disponibles.")
+            print("\n0. Regresar")
+            return
 
-        self._render_seat_map(seat_map)
+        for index, movie in enumerate(movies, start=1):
+            print(f"{index}. {movie.title}")
 
-        print("\n[ ] available")
-        print("[X] booked")
-        print("[L] locked")
+        print("\n0. Regresar")
 
-        print("\nType seat ids separated by commas.")
-        print("Example: A1,A2")
+    def _load_movies(self) -> List:
+        return self.movie_service.list_movies()
 
-        print("Type 0 to go back.")
-
-    def _load_seat_map(
+    def _handle_movie_selection(
         self,
-        showtime_id: Optional[str],
-    ):
-        """
-        Carga mapa conceptual de seats.
+        option: str,
+    ) -> None:
+        if option == "0":
+            self.stop()
+            return
 
-        Parameters
-        ----------
-        showtime_id : str, optional
-            Función activa.
+        if not option.isdigit():
+            self._handle_invalid_option()
+            return
 
-        Notes
-        -----
-        Más adelante este método podrá:
-        - consultar disponibilidad real,
-        - renderizar estados live,
-        - integrar locks temporales.
-        """
-        return self.seat_service.get_seat_map(showtime_id)
+        movies = self._load_movies()
+        movie_index = int(option) - 1
+
+        if movie_index < 0 or movie_index >= len(movies):
+            self._handle_invalid_option()
+            return
+
+        selected_movie = movies[movie_index]
+
+        self._open_movie_showtimes(selected_movie)
+
+    def _open_movie_showtimes(
+        self,
+        movie,
+    ) -> None:
+        showtimes = (
+            self.showtime_service
+            .list_showtimes_by_movie(
+                movie.movie_id
+            )
+        )
+
+        if not showtimes:
+            print("\nNo hay funciones disponibles para esta película.")
+            self._pause()
+            return
+
+        print("\n" + "=" * 50)
+        print(f"FUNCIONES DE {movie.title.upper()}")
+        print("=" * 50)
+
+        for index, showtime in enumerate(showtimes, start=1):
+            print(f"{index}.")
+            print(f"ID de función: {showtime.showtime_id}")
+            print(f"Sala: {showtime.room_id}")
+            print(f"Inicio: {showtime.starts_at}")
+            print("-" * 50)
+
+        print("\n0. Regresar")
+
+        option = self._read_user_option(
+            "\nSeleccione una función: "
+        )
+
+        if option == "0":
+            return
+
+        if not option.isdigit():
+            self._handle_invalid_option()
+            self._pause()
+            return
+
+        showtime_index = int(option) - 1
+
+        if (
+            showtime_index < 0
+            or showtime_index >= len(showtimes)
+        ):
+            self._handle_invalid_option()
+            self._pause()
+            return
+
+        selected_showtime = showtimes[showtime_index]
+
+        self._open_seat_selection(
+            movie=movie,
+            showtime=selected_showtime,
+        )
+
+    def _open_seat_selection(
+        self,
+        movie,
+        showtime,
+    ) -> None:
+        while True:
+            seats = (
+                self.showtime_seat_service
+                .list_by_showtime(
+                    showtime.showtime_id
+                )
+            )
+
+            if not seats:
+                print("\nNo hay asientos para esta función.")
+                self._pause()
+                return
+
+            self._render_seat_map(
+                movie=movie,
+                showtime=showtime,
+                seats=seats,
+            )
+
+            selected_input = self._read_user_option(
+                "\nSeleccione los asientos separados por coma "
+                "(ejemplo: A1,B2,C1): "
+            ).upper()
+
+            if selected_input == "0":
+                return
+
+            selected_labels = self._parse_selected_labels(
+                selected_input
+            )
+
+            if not selected_labels:
+                print("\nNo seleccionó asientos.")
+                self._pause()
+                continue
+
+            self._process_seat_selection(
+                movie=movie,
+                showtime=showtime,
+                selected_labels=selected_labels,
+            )
+
+            self._pause()
 
     def _render_seat_map(
         self,
-        seat_map,
+        movie,
+        showtime,
+        seats,
     ) -> None:
-        """
-        Renderiza mapa de asientos.
-
-        Parameters
-        ----------
-        seat_map : object
-            Estructura de seats.
-
-        Notes
-        -----
-        Más adelante este método podrá:
-        - renderizar ASCII avanzado,
-        - usar colores,
-        - mostrar ocupación,
-        - destacar seats seleccionados.
-        """
-        for row in seat_map:
-            print(row)
-
-    def _read_seat_selection(self) -> List[str]:
-        """
-        Lee selección de seats.
-
-        Returns
-        -------
-        list[str]
-            Lista de seat ids seleccionados.
-        """
-        raw_input = input("\nSelect seats: ").strip()
-
-        if raw_input == "0":
-            return []
-
-        selected_seats = [
-            seat.strip()
-            for seat in raw_input.split(",")
-            if seat.strip()
-        ]
-
-        return selected_seats
-
-    def _confirm_booking_flow(
-        self,
-        showtime_id: Optional[str],
-        selected_seats: List[str],
-    ) -> None:
-        """
-        Ejecuta confirmación conceptual de booking.
-
-        Parameters
-        ----------
-        showtime_id : str, optional
-            Función objetivo.
-
-        selected_seats : list[str]
-            Seats elegidos.
-
-        Notes
-        -----
-        Más adelante este método coordinará:
-        - locking,
-        - validación,
-        - pagos,
-        - confirmación final,
-        - rollback,
-        - compensaciones.
-        """
-        self._render_booking_summary(
-            showtime_id=showtime_id,
-            selected_seats=selected_seats,
-        )
-
-        confirmed = self._ask_booking_confirmation()
-
-        if not confirmed:
-            return
-
-        self._execute_purchase(
-            showtime_id=showtime_id,
-            selected_seats=selected_seats,
-        )
-
-    def _render_booking_summary(
-        self,
-        showtime_id: Optional[str],
-        selected_seats: List[str],
-    ) -> None:
-        """
-        Muestra resumen conceptual de compra.
-
-        Parameters
-        ----------
-        showtime_id : str, optional
-            Función seleccionada.
-
-        selected_seats : list[str]
-            Seats elegidos.
-        """
         print("\n" + "=" * 50)
-        print("BOOKING SUMMARY")
+        print("              MAPA DE ASIENTOS")
         print("=" * 50)
+        print(f"Película: {movie.title}")
+        print(f"Sala: {showtime.room_id}")
+        print(f"Inicio: {showtime.starts_at}")
+        print("-" * 50)
 
-        print(f"Showtime: {showtime_id}")
-        print(f"Seats: {', '.join(selected_seats)}")
+        seats_by_row = {}
 
-    def _ask_booking_confirmation(self) -> bool:
-        """
-        Solicita confirmación del usuario.
+        for seat in seats:
+            label = seat.seat_id.split("-")[-1]
+            row = label[0]
 
-        Returns
-        -------
-        bool
-            True si usuario confirma.
-        """
-        option = input("\nConfirm purchase? (y/n): ").strip().lower()
+            seats_by_row.setdefault(
+                row,
+                [],
+            ).append(seat)
 
-        return option == "y"
-
-    def _execute_purchase(
-        self,
-        showtime_id: Optional[str],
-        selected_seats: List[str],
-    ) -> None:
-        """
-        Ejecuta compra conceptual.
-
-        Parameters
-        ----------
-        showtime_id : str, optional
-            Función seleccionada.
-
-        selected_seats : list[str]
-            Seats elegidos.
-
-        Notes
-        -----
-        Más adelante este método utilizará:
-        - PurchaseTicketsUseCase,
-        - idempotencia,
-        - locking,
-        - pagos reales,
-        - UoW,
-        - compensación.
-        """
-        print("\nProcessing purchase...")
-
-        try:
-            result = self.purchase_tickets_use_case.execute(
-                showtime_id=showtime_id,
-                seat_ids=selected_seats,
+        for row in sorted(seats_by_row.keys()):
+            row_seats = sorted(
+                seats_by_row[row],
+                key=lambda seat: int(
+                    seat.seat_id.split("-")[-1][1:]
+                ),
             )
 
-            self._render_purchase_success(result)
+            labels = []
+
+            for seat in row_seats:
+                label = seat.seat_id.split("-")[-1]
+
+                if seat.is_available():
+                    labels.append(label)
+                elif seat.is_locked():
+                    labels.append(f"{label}[L]")
+                elif seat.is_booked():
+                    labels.append(f"{label}[B]")
+
+            print("  ".join(labels))
+
+        print("\nLeyenda:")
+        print("[L] Bloqueado")
+        print("[B] Comprado")
+        print("Sin marca = Disponible")
+        print("\n0. Regresar")
+
+    def _parse_selected_labels(
+        self,
+        selected_input: str,
+    ) -> List[str]:
+        return [
+            value.strip()
+            for value in selected_input.split(",")
+            if value.strip()
+        ]
+
+    def _process_seat_selection(
+        self,
+        movie,
+        showtime,
+        selected_labels: List[str],
+    ) -> None:
+        seat_ids = [
+            f"{showtime.room_id}-{label}"
+            for label in selected_labels
+        ]
+
+        locked_seats = []
+
+        try:
+            locked_seats = self._lock_selected_seats(
+                showtime_id=showtime.showtime_id,
+                seat_ids=seat_ids,
+            )
+
+            self._render_locked_seats(
+                selected_labels
+            )
+
+            confirmed = self._confirm_purchase(
+                movie=movie,
+                showtime=showtime,
+                selected_labels=selected_labels,
+                seat_ids=seat_ids,
+            )
+
+            if not confirmed:
+                self._release_locked_seats(
+                    locked_seats
+                )
+
+                print("\nCompra cancelada. Asientos liberados.")
+                return
+
+            booking = (
+                self.booking_service
+                .create_booking_from_locked_seats(
+                    customer_id="guest",
+                    showtime_id=showtime.showtime_id,
+                    seat_ids=seat_ids,
+                )
+            )
+
+            self._render_purchase_success(
+                booking=booking,
+                movie=movie,
+                showtime=showtime,
+                selected_labels=selected_labels,
+            )
 
         except Exception as exc:
-            self._handle_purchase_error(exc)
+            print("\nNo se pudo completar la compra.")
+            print(str(exc))
+
+            self._release_locked_seats_safely(
+                locked_seats
+            )
+
+            if self.logger:
+                self.logger.error(
+                    "Purchase flow failed: %s",
+                    exc,
+                )
+
+    def _lock_selected_seats(
+        self,
+        showtime_id: str,
+        seat_ids: List[str],
+    ) -> List:
+        locked_seats = []
+
+        for seat_id in seat_ids:
+            showtime_seat = (
+                self.showtime_seat_service
+                .get_by_showtime_and_seat_id(
+                    showtime_id=showtime_id,
+                    seat_id=seat_id,
+                )
+            )
+
+            if showtime_seat is None:
+                raise ValueError(
+                    f"Asiento '{seat_id}' no encontrado."
+                )
+
+            if showtime_seat.is_booked():
+                raise ValueError(
+                    f"Asiento '{seat_id}' ya fue comprado."
+                )
+
+            if showtime_seat.is_locked():
+                raise ValueError(
+                    f"Asiento '{seat_id}' ya está bloqueado."
+                )
+
+            showtime_seat.lock()
+
+            self.showtime_seat_service.save(
+                showtime_seat
+            )
+
+            locked_seats.append(
+                showtime_seat
+            )
+
+        return locked_seats
+
+    def _render_locked_seats(
+        self,
+        selected_labels: List[str],
+    ) -> None:
+        print("\nAsientos bloqueados temporalmente:")
+
+        for label in selected_labels:
+            print(f"- {label}")
+
+    def _confirm_purchase(
+        self,
+        movie,
+        showtime,
+        selected_labels: List[str],
+        seat_ids: List[str],
+    ) -> bool:
+        total = 5 * len(seat_ids)
+
+        print("\n" + "=" * 50)
+        print("RESUMEN DE COMPRA")
+        print("=" * 50)
+        print(f"Película: {movie.title}")
+        print(f"Sala: {showtime.room_id}")
+        print(f"Inicio: {showtime.starts_at}")
+        print(f"Asientos: {', '.join(selected_labels)}")
+        print(f"Total: {total}.00 USD")
+
+        print("\n1. Confirmar compra")
+        print("0. Cancelar")
+
+        option = self._read_user_option(
+            "\nSeleccione una opción: "
+        )
+
+        return option == "1"
 
     def _render_purchase_success(
         self,
-        booking_result,
+        booking,
+        movie,
+        showtime,
+        selected_labels: List[str],
     ) -> None:
-        """
-        Muestra resultado exitoso.
+        print("\nCompra registrada correctamente.")
+        print("=" * 50)
+        print(f"ID de reserva: {booking.booking_id}")
+        print(f"Película: {movie.title}")
+        print(f"Sala: {showtime.room_id}")
+        print(f"Inicio: {showtime.starts_at}")
+        print("Asientos:")
 
-        Parameters
-        ----------
-        booking_result : object
-            Resultado del booking.
+        for label in selected_labels:
+            print(f"- {label}")
 
-        Notes
-        -----
-        Más adelante este método podrá:
-        - mostrar tickets,
-        - mostrar QR,
-        - mostrar payment info,
-        - mostrar booking id.
-        """
-        print("\nPurchase completed successfully.")
+        print(
+            f"Total: {booking.total_amount.amount} "
+            f"{booking.total_amount.currency}"
+        )
 
-        self._pause()
-
-        self.stop()
-
-    def _handle_purchase_error(
+    def _release_locked_seats(
         self,
-        exc: Exception,
+        locked_seats: List,
     ) -> None:
-        """
-        Maneja errores de booking.
+        for showtime_seat in locked_seats:
+            showtime_seat.release()
 
-        Parameters
-        ----------
-        exc : Exception
-            Error capturado.
-
-        Notes
-        -----
-        Más adelante este método podrá:
-        - mostrar errores específicos,
-        - manejar expiraciones,
-        - manejar conflictos de concurrencia,
-        - sugerir retry.
-        """
-        print("\nPurchase failed.")
-        print(str(exc))
-
-        if self.logger:
-            self.logger.error(
-                "Booking flow failed: %s",
-                exc,
+            self.showtime_seat_service.save(
+                showtime_seat
             )
 
-        self._pause()
+    def _release_locked_seats_safely(
+        self,
+        locked_seats: List,
+    ) -> None:
+        for showtime_seat in locked_seats:
+            if showtime_seat.is_locked():
+                showtime_seat.release()
+
+                self.showtime_seat_service.save(
+                    showtime_seat
+                )
+
+    def _read_user_option(
+        self,
+        message: str,
+    ) -> str:
+        return input(message).strip()
+
+    def _handle_invalid_option(self) -> None:
+        print("\nOpción inválida.")
 
     def _pause(self) -> None:
-        """
-        Pausa interacción CLI.
-        """
-        input("\nPress ENTER to continue...")
-
-
-"""
-Ejemplo conceptual futuro
--------------------------
-
-    booking_commands = BookingCommands(
-        purchase_tickets_use_case=use_case,
-        booking_service=booking_service,
-        seat_service=seat_service,
-        payment_service=payment_service,
-    )
-
-    booking_commands.run(showtime_id="showtime-001")
-
-Flujo esperado
---------------
-BOOKING FLOW
-    ├── render seat map
-    ├── select seats
-    ├── confirm selection
-    ├── execute payment
-    ├── create booking
-    └── render result
-
-Importante
-----------
-Este módulo NO contiene reglas del negocio.
-
-Solamente coordina:
-- experiencia de usuario,
-- navegación,
-- interacción CLI,
-- flujo visual de compra.
-"""
+        input("\nPresione ENTER para continuar...")

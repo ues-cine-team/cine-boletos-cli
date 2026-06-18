@@ -38,6 +38,10 @@ from cine_boletos_cli.application.services.room_service import (
     RoomService,
 )
 
+from cine_boletos_cli.application.services.showtime_seat_service import (
+    ShowtimeSeatService,
+)
+
 from cine_boletos_cli.application.use_cases.create_movie import (
     CreateMovieUseCase,
 )
@@ -52,6 +56,10 @@ from cine_boletos_cli.cli.commands.admin_commands import (
 
 from cine_boletos_cli.cli.commands.movie_commands import (
     MovieCommands,
+)
+
+from cine_boletos_cli.cli.commands.booking_commands import (
+    BookingCommands,
 )
 
 from cine_boletos_cli.cli.command_router import (
@@ -74,17 +82,10 @@ def main():
     # ==================================================
 
     movie_repository = MovieRepository()
-
     showtime_repository = ShowtimeRepository()
-
-    showtime_seat_repository = (
-        ShowtimeSeatRepository()
-    )
-
+    showtime_seat_repository = ShowtimeSeatRepository()
     booking_repository = BookingRepository()
-
     room_repository = RoomRepository()
-
     seat_repository = SeatRepository()
 
     # ==================================================
@@ -110,6 +111,10 @@ def main():
     booking_service = BookingService(
         booking_repository=booking_repository,
         showtime_repository=showtime_repository,
+        showtime_seat_repository=showtime_seat_repository,
+    )
+
+    showtime_seat_service = ShowtimeSeatService(
         showtime_seat_repository=showtime_seat_repository,
     )
 
@@ -162,9 +167,12 @@ def main():
     movie_commands = MovieCommands(
         movie_service=movie_service,
         showtime_service=showtime_service,
-        showtime_seat_repository=(
-            showtime_seat_repository
-        ),
+    )
+
+    booking_commands = BookingCommands(
+        movie_service=movie_service,
+        showtime_service=showtime_service,
+        showtime_seat_service=showtime_seat_service,
         booking_service=booking_service,
     )
 
@@ -182,6 +190,7 @@ def main():
 
     router = CommandRouter(
         movie_commands=movie_commands,
+        booking_commands=booking_commands,
         admin_commands=admin_commands,
     )
 

@@ -128,3 +128,24 @@ class ShowtimeSeatService:
         seat.book()
 
         return seat
+
+    def get_by_showtime_and_seat_id(
+        self,
+        showtime_id,
+        seat_id,
+    ):
+        return (
+            self.showtime_seat_repository
+            .get_by_showtime_and_seat_id(
+                showtime_id=showtime_id,
+                seat_id=seat_id,
+            )
+        )
+
+    def save(
+        self,
+        showtime_seat,
+    ):
+        return self.showtime_seat_repository.save(
+            showtime_seat
+        )
