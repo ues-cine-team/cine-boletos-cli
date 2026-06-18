@@ -378,7 +378,7 @@ class AdminCommands:
 
     def _view_bookings(self) -> None:
         """
-        Muestra reservas registradas.
+        Muestra reservas registradas con información amigable.
         """
         print("\nRESERVAS")
         print("-" * 50)
@@ -396,14 +396,45 @@ class AdminCommands:
             return
 
         for booking in bookings:
+            showtime = self.showtime_service.get_showtime_by_id(
+                booking.showtime_id
+            )
+
+            movie = None
+
+            if showtime is not None:
+                movie = self.movie_service.get_movie_by_id(
+                    showtime.movie_id
+                )
+
             seat_labels = [
                 seat_id.split("-")[-1]
                 for seat_id in booking.seat_ids
             ]
 
-            print(f"ID: {booking.booking_id}")
+            movie_title = (
+                movie.title
+                if movie is not None
+                else "Película no encontrada"
+            )
+
+            room_id = (
+                showtime.room_id
+                if showtime is not None
+                else "Sala no encontrada"
+            )
+
+            starts_at = (
+                showtime.starts_at
+                if showtime is not None
+                else "Función no encontrada"
+            )
+
+            print(f"ID reserva: {booking.booking_id}")
             print(f"Cliente: {booking.customer_id}")
-            print(f"Función: {booking.showtime_id}")
+            print(f"Película: {movie_title}")
+            print(f"Sala: {room_id}")
+            print(f"Inicio: {starts_at}")
             print(f"Asientos: {', '.join(seat_labels)}")
             print(
                 f"Total: {booking.total_amount.amount} "
