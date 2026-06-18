@@ -5,6 +5,7 @@ from typing import Optional
 from uuid import uuid4
 
 from cine_boletos_cli.domain.entities.showtime import Showtime
+from cine_boletos_cli.domain.entities.showtime_seat import ShowtimeSeat
 from cine_boletos_cli.domain.value_objects.money import Money
 
 
@@ -15,10 +16,12 @@ class ShowtimeService:
         showtime_repository,
         movie_repository,
         seat_repository=None,
+        showtime_seat_repository=None,
     ):
         self.showtime_repository = showtime_repository
         self.movie_repository = movie_repository
         self.seat_repository = seat_repository
+        self.showtime_seat_repository = showtime_seat_repository
 
     def create_showtime(
         self,
@@ -44,9 +47,38 @@ class ShowtimeService:
             base_price=Money("5.00"),
         )
 
-        return self.showtime_repository.save(
+        saved_showtime = self.showtime_repository.save(
             showtime
         )
+
+        self._create_showtime_seats(
+            saved_showtime
+        )
+
+        return saved_showtime
+
+    def _create_showtime_seats(
+        self,
+        showtime,
+    ):
+        if self.seat_repository is None:
+            return
+
+        if self.showtime_seat_repository is None:
+            return
+
+        seats = self.seat_repository.list_all()
+
+        for seat in seats:
+            showtime_seat = ShowtimeSeat(
+                showtime_seat_id=str(uuid4()),
+                showtime_id=showtime.showtime_id,
+                seat_id=str(seat.seat_id),
+            )
+
+            self.showtime_seat_repository.save(
+                showtime_seat
+            )
 
     def get_showtime_by_id(
         self,
@@ -61,7 +93,7 @@ class ShowtimeService:
         Devuelve todas las funciones.
         """
         return self.showtime_repository.list_all()
-    
+
     def list_showtimes_by_movie(
         self,
         movie_id: str,
