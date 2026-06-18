@@ -146,6 +146,9 @@ def main():
     movie_commands = MovieCommands(
         movie_service=movie_service,
         showtime_service=showtime_service,
+        showtime_seat_repository=(
+            showtime_seat_repository
+        ),
     )
 
     admin_commands = AdminCommands(
