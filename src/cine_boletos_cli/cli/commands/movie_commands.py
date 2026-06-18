@@ -337,7 +337,34 @@ class MovieCommands:
             print("\nShowtime service unavailable.")
             return
 
-        print(f"\nLoading showtimes for: {movie.title}")
+        showtimes = (
+            self.showtime_service
+            .list_showtimes_by_movie(
+                movie.movie_id
+            )
+        )
+
+        if not showtimes:
+            print("\nNo showtimes available.")
+            self._pause()
+            return
+
+        print(
+            f"\nSHOWTIMES FOR "
+            f"{movie.title.upper()}"
+        )
+        print("-" * 50)
+
+        for showtime in showtimes:
+            print(
+                f"Room: {showtime.room_id}"
+            )
+            print(
+                f"Starts: {showtime.starts_at}"
+            )
+            print("-" * 50)
+
+        self._pause()
 
     def _handle_invalid_option(self) -> None:
         """

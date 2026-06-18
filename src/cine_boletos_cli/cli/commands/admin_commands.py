@@ -107,6 +107,8 @@ Este archivo representa el panel interno operativo del sistema.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from typing import Optional
 
 
@@ -288,32 +290,32 @@ class AdminCommands:
         self._pause()
 
     def _create_showtime_flow(self) -> None:
-        """
-        Ejecuta flujo conceptual de creación de función.
 
-        Notes
-        -----
-        Más adelante este método podrá:
-        - seleccionar sala,
-        - validar horarios,
-        - detectar conflictos,
-        - configurar pricing,
-        - configurar formatos especiales.
-        """
         print("\nCREATE SHOWTIME")
 
         movie_id = input("Movie ID: ").strip()
         room_id = input("Room ID: ").strip()
-        starts_at = input("Starts at: ").strip()
+
+        starts_at_str = input(
+            "Starts at (YYYY-MM-DD HH:MM): "
+        ).strip()
 
         try:
-            result = self.create_showtime_use_case.execute(
+
+            starts_at = datetime.strptime(
+                starts_at_str,
+                "%Y-%m-%d %H:%M",
+            )
+
+            self.create_showtime_use_case.execute(
                 movie_id=movie_id,
                 room_id=room_id,
                 starts_at=starts_at,
             )
 
-            print("\nShowtime created successfully.")
+            print(
+                "\nShowtime created successfully."
+            )
 
         except Exception as exc:
             self._handle_admin_error(exc)
@@ -323,13 +325,6 @@ class AdminCommands:
     def _view_movies(self) -> None:
         """
         Muestra películas registradas.
-
-        Notes
-        -----
-        Más adelante este método podrá:
-        - paginar resultados,
-        - mostrar estadísticas,
-        - mostrar estado de cartelera.
         """
         print("\nMOVIES")
         print("-" * 50)
@@ -342,21 +337,24 @@ class AdminCommands:
             return
 
         for movie in movies:
-            print(f"- {movie.title}")
+
+            print(f"ID: {movie.movie_id}")
+            print(f"Title: {movie.title}")
+            print(
+                f"Duration: "
+                f"{movie.duration_minutes} min"
+            )
+            print(
+                f"Classification: "
+                f"{movie.classification}"
+            )
+            print("-" * 50)
 
         self._pause()
 
     def _view_showtimes(self) -> None:
         """
         Muestra funciones registradas.
-
-        Notes
-        -----
-        Más adelante este método podrá:
-        - mostrar ocupación,
-        - mostrar disponibilidad,
-        - mostrar conflictos,
-        - mostrar métricas.
         """
         print("\nSHOWTIMES")
         print("-" * 50)
@@ -369,10 +367,12 @@ class AdminCommands:
             return
 
         for showtime in showtimes:
-            print(
-                f"- {showtime.movie.title} "
-                f"at {showtime.starts_at}"
-            )
+            print(f"ID: {showtime.showtime_id}")
+            print(f"Movie ID: {showtime.movie_id}")
+            print(f"Room ID: {showtime.room_id}")
+            print(f"Starts At: {showtime.starts_at}")
+            print(f"Status: {showtime.status}")
+            print("-" * 50)
 
         self._pause()
 
