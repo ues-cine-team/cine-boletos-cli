@@ -141,6 +141,23 @@ class ShowtimeSeat:
         self.status = SEAT_AVAILABLE
         self.updated_at = datetime.utcnow()
 
+    def cancel_booking(self):
+        """
+        BOOKED -> AVAILABLE
+
+        Se utiliza cuando una reserva confirmada
+        es cancelada y los asientos deben volver
+        a quedar disponibles.
+        """
+        if self.status != SEAT_BOOKED:
+            raise ValueError(
+                "Solo un asiento comprado puede liberarse por cancelación."
+            )
+
+        self.status = SEAT_AVAILABLE
+
+        self.updated_at = datetime.utcnow()
+
     def book(self):
         """
         LOCKED -> BOOKED
@@ -152,7 +169,7 @@ class ShowtimeSeat:
 
         self.status = SEAT_BOOKED
         self.updated_at = datetime.utcnow()
-
+        
     def __repr__(self):
         return (
             "ShowtimeSeat("
