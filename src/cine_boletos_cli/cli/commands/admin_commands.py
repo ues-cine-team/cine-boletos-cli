@@ -207,6 +207,7 @@ class AdminCommands:
         print("3. View Movies")
         print("4. View Showtimes")
         print("5. View Bookings")
+        print("6. Cancel Booking")
         print("0. Back")
 
     def _read_user_option(self) -> str:
@@ -238,6 +239,7 @@ class AdminCommands:
             "3": self._view_movies,
             "4": self._view_showtimes,
             "5": self._view_bookings,
+            "6": self._cancel_booking_flow,
             "0": self.stop,
         }
 
@@ -443,6 +445,93 @@ class AdminCommands:
             print(f"Estado: {booking.status}")
             print(f"Pago: {booking.payment_status}")
             print("-" * 50)
+
+        self._pause()
+    
+    def _cancel_booking_flow(self) -> None:
+        """
+        Cancela una reserva existente.
+        """
+        print("\nCANCEL BOOKING")
+        print("-" * 50)
+
+        if self.booking_service is None:
+            print("Servicio de reservas no disponible.")
+            self._pause()
+            return
+
+        bookings = self.booking_service.list_bookings()
+
+        if not bookings:
+            print("No hay reservas registradas.")
+            self._pause()
+            return
+
+        for index, booking in enumerate(bookings, start=1):
+            seat_labels = [
+                seat_id.split("-")[-1]
+                for seat_id in booking.seat_ids
+            ]
+
+            print(f"{index}.")
+            print(f"ID reserva: {booking.booking_id}")
+            print(f"Asientos: {', '.join(seat_labels)}")
+            print(f"Estado: {booking.status}")
+            print("-" * 50)
+
+        print("\n0. Regresar")
+
+        option = input(
+            "\nSeleccione la reserva a cancelar: "
+        ).strip()
+
+        if option == "0":
+            return
+
+        if not option.isdigit():
+            self._handle_invalid_option()
+            self._pause()
+            return
+
+        booking_index = int(option) - 1
+
+        if (
+            booking_index < 0
+            or booking_index >= len(bookings)
+        ):
+            self._handle_invalid_option()
+            self._pause()
+            return
+
+        selected_booking = bookings[booking_index]
+
+        print("\nReserva seleccionada:")
+        print(f"ID: {selected_booking.booking_id}")
+        print(f"Estado actual: {selected_booking.status}")
+
+        confirmation = input(
+            "\n¿Confirmar cancelación? (y/n): "
+        ).strip().lower()
+
+        if confirmation != "y":
+            print("\nCancelación abortada.")
+            self._pause()
+            return
+
+        try:
+            cancelled_booking = (
+                self.booking_service.cancel_booking(
+                    selected_booking.booking_id
+                )
+            )
+
+            print("\nReserva cancelada correctamente.")
+            print(f"ID: {cancelled_booking.booking_id}")
+            print(f"Estado: {cancelled_booking.status}")
+            print("Los asientos fueron liberados.")
+
+        except Exception as exc:
+            self._handle_admin_error(exc)
 
         self._pause()
     
