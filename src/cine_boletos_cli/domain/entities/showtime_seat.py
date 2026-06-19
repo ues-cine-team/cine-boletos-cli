@@ -169,6 +169,31 @@ class ShowtimeSeat:
 
         self.status = SEAT_BOOKED
         self.updated_at = datetime.utcnow()
+
+    def to_dict(self):
+        return {
+            "showtime_seat_id": self.showtime_seat_id,
+            "showtime_id": self.showtime_id,
+            "seat_id": self.seat_id,
+            "status": self.status,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            showtime_seat_id=data["showtime_seat_id"],
+            showtime_id=data["showtime_id"],
+            seat_id=data["seat_id"],
+            status=data["status"],
+            created_at=datetime.fromisoformat(
+                data["created_at"]
+            ),
+            updated_at=datetime.fromisoformat(
+                data["updated_at"]
+            ),
+        )
         
     def __repr__(self):
         return (

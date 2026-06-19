@@ -258,6 +258,57 @@ class Showtime:
             )
 
         return True
+    
+    def to_dict(self):
+        """
+        Convierte Showtime a dict para persistencia JSON.
+        """
+        return {
+            "showtime_id": self.showtime_id,
+            "movie_id": self.movie_id,
+            "room_id": self.room_id,
+            "starts_at": self.starts_at.isoformat(),
+            "duration_minutes": self.duration_minutes,
+            "ends_at": self.ends_at.isoformat(),
+            "base_price": {
+                "amount": str(self.base_price.amount),
+                "currency": self.base_price.currency,
+            },
+            "status": self.status,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """
+        Reconstruye Showtime desde JSON.
+        """
+        base_price_data = data["base_price"]
+
+        return cls(
+            showtime_id=data["showtime_id"],
+            movie_id=data["movie_id"],
+            room_id=data["room_id"],
+            starts_at=datetime.fromisoformat(
+                data["starts_at"]
+            ),
+            duration_minutes=data["duration_minutes"],
+            base_price=Money(
+                amount=base_price_data["amount"],
+                currency=base_price_data["currency"],
+            ),
+            status=data["status"],
+            ends_at=datetime.fromisoformat(
+                data["ends_at"]
+            ),
+            created_at=datetime.fromisoformat(
+                data["created_at"]
+            ),
+            updated_at=datetime.fromisoformat(
+                data["updated_at"]
+            ),
+        )
 
     def __repr__(self):
         return (

@@ -183,3 +183,54 @@ class Booking:
             )
 
         return True
+    
+    def to_dict(self):
+        """
+        Convierte Booking a dict para persistencia JSON.
+        """
+        return {
+            "booking_id": self.booking_id,
+            "customer_id": self.customer_id,
+            "showtime_id": self.showtime_id,
+            "seat_ids": self.seat_ids,
+            "total_amount": {
+                "amount": str(self.total_amount.amount),
+                "currency": self.total_amount.currency,
+            },
+            "status": self.status,
+            "payment_status": self.payment_status,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+            "idempotency_key": self.idempotency_key,
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """
+        Reconstruye Booking desde JSON.
+        """
+        from cine_boletos_cli.domain.value_objects.money import Money
+
+        total_amount_data = data["total_amount"]
+
+        return cls(
+            booking_id=data["booking_id"],
+            customer_id=data["customer_id"],
+            showtime_id=data["showtime_id"],
+            seat_ids=data["seat_ids"],
+            total_amount=Money(
+                amount=total_amount_data["amount"],
+                currency=total_amount_data["currency"],
+            ),
+            status=data["status"],
+            payment_status=data["payment_status"],
+            created_at=datetime.fromisoformat(
+                data["created_at"]
+            ),
+            updated_at=datetime.fromisoformat(
+                data["updated_at"]
+            ),
+            idempotency_key=data.get(
+                "idempotency_key"
+            ),
+        )
