@@ -169,6 +169,38 @@ class Movie:
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }
+    
+    @classmethod
+    def from_dict(cls, data):
+        """
+        Reconstruye una Movie desde JSON.
+        """
+
+        return cls(
+            movie_id=data["movie_id"],
+            title=data["title"],
+            duration_minutes=data["duration_minutes"],
+            classification=data["classification"],
+            genre=data["genre"],
+            description=data.get(
+                "description",
+                "",
+            ),
+            status=data["status"],
+            release_date=(
+                datetime.fromisoformat(
+                    data["release_date"]
+                )
+                if data.get("release_date")
+                else None
+            ),
+            created_at=datetime.fromisoformat(
+                data["created_at"]
+            ),
+            updated_at=datetime.fromisoformat(
+                data["updated_at"]
+            ),
+        )
 
     def __repr__(self):
         return (
