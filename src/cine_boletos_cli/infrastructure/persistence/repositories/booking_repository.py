@@ -1,114 +1,145 @@
-"""
-Este archivo define el contrato del repositorio de bookings.
-¿Por qué existe?
-Porque la entidad Booking no debe saber cómo se guarda en una base de datos ni
-cómo se consulta desde fuera. Esa responsabilidad se separa aquí para mantener
-el dominio limpio y evitar mezclar reglas de negocio con detalles técnicos.
-¿Cómo se usará más adelante?
-- `booking_service.py` usará este repositorio para crear, buscar y actualizar reservas.
-- `purchase_tickets.py` lo usará para persistir el resultado de la compra.
-- `cancel_booking.py` lo usará para recuperar y cancelar reservas.
-- `notification_worker.py` o futuros procesos podrían consultarlo para saber
-  qué reservas fueron confirmadas, canceladas o fallidas.
-Qué debe resolver este repositorio:
-- guardar bookings,
-- recuperar bookings por ID,
-- listar reservas por cliente o por función,
-- actualizar estados de pago o cancelación,
-- ayudar a mantener trazabilidad sobre el flujo de compra.
-Importante:
-Este archivo NO debe decidir si una reserva puede confirmarse o cancelarse.
-Eso pertenece a la entidad Booking y a los servicios del dominio.
-El repositorio solo guarda, recupera y actualiza datos.
-"""
+import json
+from pathlib import Path
+
+from cine_boletos_cli.domain.entities.booking import Booking
 
 
 class BookingRepository:
     """
-    Repositorio de reservas en memoria.
-    Usa un diccionario interno para simular persistencia.
+    Repositorio de reservas con persistencia JSON.
     """
 
-    def __init__(self):
-        # Diccionario: booking_id -> objeto Booking
+    def __init__(
+        self,
+        file_path="data/bookings.json",
+    ):
+        self.file_path = Path(file_path)
         self._storage = {}
 
+        self._ensure_file_exists()
+        self._load()
+
     def save(self, booking):
-        """
-        Guarda o actualiza una reserva.
+        self._storage[
+            booking.booking_id
+        ] = booking
 
-        Args:
-            booking: Entidad Booking ya validada por el dominio.
+        self._persist()
 
-        Returns:
-            Booking: la reserva persistida.
-        """
-        self._storage[booking.id] = booking
         return booking
 
-    def get_by_id(self, booking_id):
-        """
-        Busca una reserva por su identificador.
+    def get_by_id(
+        self,
+        booking_id,
+    ):
+        return self._storage.get(
+            booking_id
+        )
 
-        Args:
-            booking_id: Identificador formal de la reserva.
+    def list_all(self):
+        return list(
+            self._storage.values()
+        )
 
-        Returns:
-            Booking | None: la reserva encontrada o None si no existe.
-        """
-        return self._storage.get(booking_id, None)
-
-    def list_by_customer(self, customer_id):
-        """
-        Devuelve todas las reservas de un cliente.
-
-        Args:
-            customer_id: Identificador del cliente.
-
-        Returns:
-            list[Booking]: lista de reservas asociadas al cliente.
-        """
+    def list_by_customer(
+        self,
+        customer_id,
+    ):
         return [
-            booking for booking in self._storage.values()
-            if getattr(booking, "customer_id", None) == customer_id
+            booking
+            for booking in self._storage.values()
+            if booking.customer_id == customer_id
         ]
 
-    def list_by_showtime(self, showtime_id):
-        """
-        Devuelve todas las reservas de una función.
-
-        Args:
-            showtime_id: Identificador de la función.
-
-        Returns:
-            list[Booking]: lista de reservas asociadas a la función.
-        """
+    def list_by_showtime(
+        self,
+        showtime_id,
+    ):
         return [
-            booking for booking in self._storage.values()
-            if getattr(booking, "showtime_id", None) == showtime_id
+            booking
+            for booking in self._storage.values()
+            if booking.showtime_id == showtime_id
         ]
 
-    def list_by_status(self, status):
-        """
-        Devuelve todas las reservas que coinciden con un estado concreto.
-
-        Args:
-            status: Estado de la reserva (PENDING, CONFIRMED, CANCELLED).
-
-        Returns:
-            list[Booking]: lista filtrada por estado.
-        """
+    def list_by_status(
+        self,
+        status,
+    ):
         return [
-            booking for booking in self._storage.values()
-            if getattr(booking, "status", None) == status
+            booking
+            for booking in self._storage.values()
+            if booking.status == status
         ]
 
-    def delete(self, booking_id):
-        """
-        Elimina una reserva del almacenamiento.
+    def delete(
+        self,
+        booking_id,
+    ):
+        booking = self._storage.pop(
+            booking_id,
+            None,
+        )
 
-        Args:
-            booking_id: Identificador de la reserva.
-        """
-        if booking_id in self._storage:
-            del self._storage[booking_id]
+        if booking is not None:
+            self._persist()
+
+        return booking
+
+    def count(self):
+        return len(
+            self._storage
+        )
+
+    def clear(self):
+        self._storage.clear()
+        self._persist()
+
+    def _ensure_file_exists(self):
+        self.file_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        if not self.file_path.exists():
+            self.file_path.write_text(
+                "[]",
+                encoding="utf-8",
+            )
+
+    def _load(self):
+        raw_data = (
+            self.file_path.read_text(
+                encoding="utf-8"
+            ).strip()
+        )
+
+        if not raw_data:
+            raw_data = "[]"
+
+        data = json.loads(raw_data)
+
+        self._storage = {}
+
+        for item in data:
+            booking = Booking.from_dict(
+                item
+            )
+
+            self._storage[
+                booking.booking_id
+            ] = booking
+
+    def _persist(self):
+        data = [
+            booking.to_dict()
+            for booking in self._storage.values()
+        ]
+
+        self.file_path.write_text(
+            json.dumps(
+                data,
+                indent=4,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )

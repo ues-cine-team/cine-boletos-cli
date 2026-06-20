@@ -1,129 +1,165 @@
-"""
-Este archivo define el contrato del repositorio de funciones (Showtime).
-¿Por qué existe?
-Porque la entidad Showtime no debe saber cómo se guarda ni cómo se consulta
-desde una base de datos. Esa responsabilidad se separa aquí para mantener el
-dominio limpio y evitar mezclar reglas de negocio con detalles técnicos.
-¿Cómo se usará más adelante?
-- `showtime_service.py` usará este repositorio para crear y administrar funciones.
-- `purchase_tickets.py` consultará funciones activas antes de permitir compras.
-- `booking_service.py` verificará disponibilidad y estado de una función.
-Qué debe resolver este repositorio:
-- guardar funciones,
-- recuperar funciones por ID,
-- buscar funciones activas,
-- listar funciones por película o sala,
-- consultar funciones futuras,
-- actualizar cambios de estado u horarios.
-Importante:
-Este archivo NO debe decidir:
-- si una función puede cancelarse,
-- si ya comenzó,
-- si todavía acepta reservas,
-- ni si sus cambios son válidos.
-Eso pertenece a la entidad Showtime y a los servicios del dominio.
-El repositorio solo guarda, recupera y actualiza datos.
-"""
+import json
+from pathlib import Path
 
-from datetime import datetime
+from cine_boletos_cli.domain.entities.showtime import Showtime
 
 
 class ShowtimeRepository:
     """
-    Repositorio de funciones en memoria.
-    Usa un diccionario interno para simular persistencia.
+    Repositorio de funciones con persistencia JSON.
     """
 
-    def __init__(self):
-        # Diccionario: showtime_id -> objeto Showtime
+    def __init__(
+        self,
+        file_path="data/showtimes.json",
+    ):
+        self.file_path = Path(file_path)
         self._storage = {}
 
+        self._ensure_file_exists()
+        self._load()
+
     def save(self, showtime):
-        """
-        Guarda o actualiza una función.
+        self._storage[
+            showtime.showtime_id
+        ] = showtime
 
-        Args:
-            showtime: Entidad Showtime ya validada por el dominio.
+        self._persist()
 
-        Returns:
-            Showtime: la función persistida.
-        """
-        self._storage[showtime.id] = showtime
         return showtime
 
-    def get_by_id(self, showtime_id):
-        """
-        Busca una función por su identificador.
+    def get_by_id(
+        self,
+        showtime_id,
+    ):
+        return self._storage.get(
+            showtime_id
+        )
 
-        Args:
-            showtime_id: Identificador formal de la función.
+    def exists(
+        self,
+        showtime_id,
+    ):
+        return (
+            showtime_id
+            in self._storage
+        )
 
-        Returns:
-            Showtime | None: la función encontrada o None si no existe.
-        """
-        return self._storage.get(showtime_id, None)
+    def list_all(self):
+        return list(
+            self._storage.values()
+        )
 
     def list_active(self):
-        """
-        Devuelve todas las funciones activas.
-
-        Returns:
-            list[Showtime]: funciones activas.
-        """
         return [
-            showtime for showtime in self._storage.values()
-            if getattr(showtime, "is_active", False)
+            showtime
+            for showtime in self._storage.values()
+            if showtime.is_active()
         ]
 
-    def list_by_movie(self, movie_id):
-        """
-        Devuelve todas las funciones asociadas a una película.
-
-        Args:
-            movie_id: Identificador de la película.
-
-        Returns:
-            list[Showtime]: funciones de la película.
-        """
+    def list_by_movie(
+        self,
+        movie_id,
+    ):
         return [
-            showtime for showtime in self._storage.values()
-            if getattr(showtime, "movie_id", None) == movie_id
+            showtime
+            for showtime in self._storage.values()
+            if showtime.movie_id == movie_id
         ]
 
-    def list_by_room(self, room_id):
-        """
-        Devuelve todas las funciones asociadas a una sala.
-
-        Args:
-            room_id: Identificador de la sala.
-
-        Returns:
-            list[Showtime]: funciones de la sala.
-        """
+    def list_by_room(
+        self,
+        room_id,
+    ):
         return [
-            showtime for showtime in self._storage.values()
-            if getattr(showtime, "room_id", None) == room_id
+            showtime
+            for showtime in self._storage.values()
+            if showtime.room_id == room_id
         ]
 
     def list_future_showtimes(self):
-        """
-        Devuelve funciones futuras que todavía no comienzan.
+        from datetime import datetime
 
-        Returns:
-            list[Showtime]: funciones futuras.
-        """
-        now = datetime.now()
+        now = datetime.utcnow()
+
         return [
-            showtime for showtime in self._storage.values()
-            if getattr(showtime, "start_time", None) and showtime.start_time > now
+            showtime
+            for showtime in self._storage.values()
+            if showtime.starts_at > now
         ]
 
-    def delete(self, showtime_id):
-        """
-        Elimina una función del almacenamiento.
+    def delete(
+        self,
+        showtime_id,
+    ):
+        showtime = self._storage.pop(
+            showtime_id,
+            None,
+        )
 
-        Args:
-            showtime_id: Identificador de la función.
-        """
-        if showtime_id in self._storage:
-            del self._storage[showtime_id]
+        if showtime is not None:
+            self._persist()
+
+        return showtime
+
+    def count(self):
+        return len(
+            self._storage
+        )
+
+    def clear(self):
+        self._storage.clear()
+        self._persist()
+
+    def _ensure_file_exists(self):
+        self.file_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        if not self.file_path.exists():
+            self.file_path.write_text(
+                "[]",
+                encoding="utf-8",
+            )
+
+    def _load(self):
+        raw_data = (
+            self.file_path.read_text(
+                encoding="utf-8"
+            ).strip()
+        )
+
+        if not raw_data:
+            raw_data = "[]"
+
+        data = json.loads(raw_data)
+
+        self._storage = {}
+
+        for item in data:
+
+            showtime = (
+                Showtime.from_dict(
+                    item
+                )
+            )
+
+            self._storage[
+                showtime.showtime_id
+            ] = showtime
+
+    def _persist(self):
+        data = [
+            showtime.to_dict()
+            for showtime in self._storage.values()
+        ]
+
+        self.file_path.write_text(
+            json.dumps(
+                data,
+                indent=4,
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )

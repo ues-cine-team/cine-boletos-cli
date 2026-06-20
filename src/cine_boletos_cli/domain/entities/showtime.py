@@ -1,154 +1,322 @@
 """
-Este archivo define la entidad Showtime.
+showtime.py
 
-¿Por qué existe?
-Porque una película sola no basta para vender boletos. El sistema necesita
-saber en qué sala se proyecta, a qué hora empieza, cuánto cuesta y si sigue
-activa para reservar asientos.
+Entidad de dominio que representa una función de cine.
 
-¿Cómo se usará más adelante?
-- `showtime_service.py` usará Showtime para crear, consultar y cancelar funciones.
-- `booking_service.py` lo usará para validar que una compra pertenezca a una
-  función válida y activa.
-- `seat_repository.py` y `seat_lock_manager.py` trabajarán sobre los asientos
-  ligados a esta función.
-- `showtime_repository.py` guardará y recuperará esta entidad.
+Showtime encapsula reglas relacionadas con:
+- programación de funciones,
+- disponibilidad temporal,
+- control de estados,
+- precio base de boletos,
+- y vigencia de la función.
 
-Qué debe resolver esta entidad:
-- representar una función de cine,
-- mantener datos básicos de programación,
-- saber si sigue activa o ya no puede vender boletos,
-- ayudar a controlar disponibilidad de asientos,
-- evitar cambios de estado inválidos.
+Esta entidad NO conoce detalles de infraestructura como:
+- base de datos,
+- Redis,
+- workers,
+- CLI,
+- sistemas de pago.
 
-Idea importante:
-Showtime no debe encargarse de cobrar, hablar con la consola, ni guardar datos
-en base de datos. Solo debe contener las reglas del dominio relacionadas con la
-función.
+La disponibilidad de asientos por función se modela en otra entidad,
+por ejemplo ShowtimeSeat.
 """
-
 
 from datetime import datetime, timedelta
 from typing import Optional
 
-# Se espera usar más adelante el value object Money.
-# from cine_boletos_cli.domain.value_objects.money import Money
+from cine_boletos_cli.domain.exceptions.domain_errors import (
+    InvalidBookingStateError,
+)
+from cine_boletos_cli.domain.value_objects.money import Money
+from cine_boletos_cli.shared.constants import (
+    SHOWTIME_ACTIVE,
+    SHOWTIME_CANCELLED,
+    SHOWTIME_FINISHED,
+    SHOWTIME_SCHEDULED,
+)
 
 
 class Showtime:
     """
-    Entidad del dominio que representa una función de cine.
+    Representa una función de cine dentro del sistema.
+
+    Parameters
+    ----------
+    showtime_id : str
+        Identificador único de la función.
+
+    movie_id : str
+        Identificador de la película.
+
+    room_id : str
+        Identificador de la sala.
+
+    starts_at : datetime
+        Fecha y hora de inicio.
+
+    duration_minutes : int
+        Duración de la función en minutos.
+
+    base_price : Money
+        Precio base del boleto.
+
+    status : str, optional
+        Estado actual de la función.
+
+    ends_at : datetime | None, optional
+        Fecha de finalización de la función.
+
+    created_at : datetime | None, optional
+        Fecha de creación.
+
+    updated_at : datetime | None, optional
+        Fecha de última actualización.
     """
+
+    VALID_STATUSES = {
+        SHOWTIME_SCHEDULED,
+        SHOWTIME_ACTIVE,
+        SHOWTIME_FINISHED,
+        SHOWTIME_CANCELLED,
+    }
 
     def __init__(
         self,
-        showtime_id,
-        movie_id,
-        room_id,
+        showtime_id: str,
+        movie_id: str,
+        room_id: str,
         starts_at: datetime,
         duration_minutes: int,
-        base_price,
-        status,
+        base_price: Money,
+        status: str = SHOWTIME_SCHEDULED,
         ends_at: Optional[datetime] = None,
         created_at: Optional[datetime] = None,
         updated_at: Optional[datetime] = None,
     ):
-        """
-        Inicializa una función de cine.
+        if not showtime_id:
+            raise ValueError("showtime_id no puede estar vacío.")
 
-        Args:
-            showtime_id:
-                Identificador formal de la función.
+        if not movie_id:
+            raise ValueError("movie_id no puede estar vacío.")
 
-            movie_id:
-                Identificador de la película que se proyecta.
+        if not room_id:
+            raise ValueError("room_id no puede estar vacío.")
 
-            room_id:
-                Identificador de la sala donde se proyecta.
+        if duration_minutes <= 0:
+            raise ValueError(
+                "duration_minutes debe ser mayor que cero."
+            )
 
-            starts_at:
-                Fecha y hora de inicio de la función.
+        if starts_at is None:
+            raise ValueError("starts_at no puede ser None.")
 
-            duration_minutes:
-                Duración de la función en minutos.
+        if base_price is None:
+            raise ValueError("base_price no puede ser None.")
 
-            base_price:
-                Precio base del boleto para esta función.
+        if status not in self.VALID_STATUSES:
+            raise ValueError(f"Estado inválido: {status}")
 
-            status:
-                Estado actual de la función.
+        computed_ends_at = starts_at + timedelta(
+            minutes=duration_minutes
+        )
 
-            ends_at:
-                Fecha y hora de finalización. Si no se entrega, puede calcularse
-                a partir de starts_at y duration_minutes.
+        if ends_at is not None and ends_at <= starts_at:
+            raise ValueError(
+                "ends_at debe ser mayor que starts_at."
+            )
 
-            created_at:
-                Momento en que se creó la función.
+        if ends_at is not None and ends_at != computed_ends_at:
+            raise ValueError(
+                "ends_at no coincide con starts_at + duration_minutes."
+            )
 
-            updated_at:
-                Momento de la última actualización.
-        """
         self.showtime_id = showtime_id
         self.movie_id = movie_id
         self.room_id = room_id
+
         self.starts_at = starts_at
         self.duration_minutes = duration_minutes
+        self.ends_at = ends_at or computed_ends_at
+
         self.base_price = base_price
         self.status = status
-        self.ends_at = ends_at or (starts_at + timedelta(minutes=duration_minutes))
+
         self.created_at = created_at or datetime.utcnow()
         self.updated_at = updated_at or self.created_at
 
-    def is_active(self):
-        """
-        Indica si la función sigue activa y puede usarse para reservas.
-
-        Una función activa es una función que todavía no fue cancelada,
-        cerrada o vencida según las reglas del sistema.
-        """
-        pass
-
-    def has_started(self, now: Optional[datetime] = None):
+    def has_started(self, now: Optional[datetime] = None) -> bool:
         """
         Indica si la función ya comenzó.
-
-        Esto sirve para evitar reservar o cancelar en momentos no permitidos.
         """
-        pass
+        now = now or datetime.utcnow()
+        return now >= self.starts_at
 
-    def change_status(self, new_status):
+    def has_finished(self, now: Optional[datetime] = None) -> bool:
+        """
+        Indica si la función ya terminó.
+        """
+        now = now or datetime.utcnow()
+        return now >= self.ends_at
+
+    def is_active(self, now: Optional[datetime] = None) -> bool:
+        """
+        Indica si la función sigue activa.
+        """
+        now = now or datetime.utcnow()
+        return self.status == SHOWTIME_ACTIVE and now < self.ends_at
+
+    def is_scheduled(self) -> bool:
+        """
+        Indica si la función sigue programada.
+        """
+        return self.status == SHOWTIME_SCHEDULED
+
+    def is_cancelled(self) -> bool:
+        """
+        Indica si la función fue cancelada.
+        """
+        return self.status == SHOWTIME_CANCELLED
+
+    def is_finished(self) -> bool:
+        """
+        Indica si la función fue finalizada.
+        """
+        return self.status == SHOWTIME_FINISHED
+
+    def change_status(self, new_status: str):
         """
         Cambia el estado de la función.
-
-        Debe validar que la transición sea permitida por las reglas del dominio.
         """
-        pass
+        self._validate_transition(new_status)
+        self.status = new_status
+        self.updated_at = datetime.utcnow()
 
-    def change_price(self, new_price):
+    def activate(self, now: Optional[datetime] = None):
         """
-        Cambia el precio base de la función.
-
-        Más adelante esto puede usarse para promociones o ajustes de tarifas.
+        Marca la función como activa.
         """
-        pass
+        now = now or datetime.utcnow()
 
-    def available_seats(self):
+        if now < self.starts_at:
+            raise InvalidBookingStateError(
+                "No se puede activar una función antes de starts_at."
+            )
+
+        self.change_status(SHOWTIME_ACTIVE)
+
+    def finish(self, now: Optional[datetime] = None):
         """
-        Devuelve la cantidad de asientos disponibles para esta función.
-
-        La lógica real dependerá de los asientos asociados y su estado.
+        Marca la función como finalizada.
         """
-        pass
+        now = now or datetime.utcnow()
 
-    def validate_transition(self, new_status):
+        if not self.has_started(now):
+            raise InvalidBookingStateError(
+                "No se puede finalizar una función que aún no inicia."
+            )
+
+        self.change_status(SHOWTIME_FINISHED)
+
+    def cancel(self):
         """
-        Valida si el cambio de estado solicitado es permitido.
-
-        Ejemplos esperados:
-        - SCHEDULED -> ACTIVE
-        - ACTIVE -> CANCELLED
-        - ACTIVE -> FINISHED
-
-        Cambios inválidos deben rechazarse.
+        Cancela la función.
         """
-        pass
+        self.change_status(SHOWTIME_CANCELLED)
+
+    def change_price(self, new_price: Money):
+        """
+        Actualiza el precio base de la función.
+        """
+        if new_price is None:
+            raise ValueError("new_price no puede ser None.")
+
+        self.base_price = new_price
+        self.updated_at = datetime.utcnow()
+
+    def _validate_transition(self, new_status: str):
+        """
+        Valida si una transición de estado es permitida.
+        """
+        valid_transitions = {
+            SHOWTIME_SCHEDULED: [
+                SHOWTIME_ACTIVE,
+                SHOWTIME_CANCELLED,
+            ],
+            SHOWTIME_ACTIVE: [
+                SHOWTIME_FINISHED,
+                SHOWTIME_CANCELLED,
+            ],
+            SHOWTIME_FINISHED: [],
+            SHOWTIME_CANCELLED: [],
+        }
+
+        allowed = valid_transitions.get(self.status, [])
+
+        if new_status not in allowed:
+            raise InvalidBookingStateError(
+                f"Transición inválida: {self.status} -> {new_status}"
+            )
+
+        return True
+    
+    def to_dict(self):
+        """
+        Convierte Showtime a dict para persistencia JSON.
+        """
+        return {
+            "showtime_id": self.showtime_id,
+            "movie_id": self.movie_id,
+            "room_id": self.room_id,
+            "starts_at": self.starts_at.isoformat(),
+            "duration_minutes": self.duration_minutes,
+            "ends_at": self.ends_at.isoformat(),
+            "base_price": {
+                "amount": str(self.base_price.amount),
+                "currency": self.base_price.currency,
+            },
+            "status": self.status,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        """
+        Reconstruye Showtime desde JSON.
+        """
+        base_price_data = data["base_price"]
+
+        return cls(
+            showtime_id=data["showtime_id"],
+            movie_id=data["movie_id"],
+            room_id=data["room_id"],
+            starts_at=datetime.fromisoformat(
+                data["starts_at"]
+            ),
+            duration_minutes=data["duration_minutes"],
+            base_price=Money(
+                amount=base_price_data["amount"],
+                currency=base_price_data["currency"],
+            ),
+            status=data["status"],
+            ends_at=datetime.fromisoformat(
+                data["ends_at"]
+            ),
+            created_at=datetime.fromisoformat(
+                data["created_at"]
+            ),
+            updated_at=datetime.fromisoformat(
+                data["updated_at"]
+            ),
+        )
+
+    def __repr__(self):
+        return (
+            "Showtime("
+            f"showtime_id={self.showtime_id!r}, "
+            f"movie_id={self.movie_id!r}, "
+            f"room_id={self.room_id!r}, "
+            f"starts_at={self.starts_at!r}, "
+            f"ends_at={self.ends_at!r}, "
+            f"status={self.status!r})"
+        )

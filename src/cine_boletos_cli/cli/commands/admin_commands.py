@@ -107,6 +107,8 @@ Este archivo representa el panel interno operativo del sistema.
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from typing import Optional
 
 
@@ -205,6 +207,7 @@ class AdminCommands:
         print("3. View Movies")
         print("4. View Showtimes")
         print("5. View Bookings")
+        print("6. Cancel Booking")
         print("0. Back")
 
     def _read_user_option(self) -> str:
@@ -236,6 +239,7 @@ class AdminCommands:
             "3": self._view_movies,
             "4": self._view_showtimes,
             "5": self._view_bookings,
+            "6": self._cancel_booking_flow,
             "0": self.stop,
         }
 
@@ -263,7 +267,14 @@ class AdminCommands:
         print("\nCREATE MOVIE")
 
         title = input("Title: ").strip()
-        duration = input("Duration (minutes): ").strip()
+        try:
+            duration = int(
+                input("Duration (minutes): ").strip()
+            )
+        except ValueError:
+            print("\nDuration must be a number.")
+            self._pause()
+            return
         classification = input("Classification: ").strip()
 
         try:
@@ -281,32 +292,32 @@ class AdminCommands:
         self._pause()
 
     def _create_showtime_flow(self) -> None:
-        """
-        Ejecuta flujo conceptual de creación de función.
 
-        Notes
-        -----
-        Más adelante este método podrá:
-        - seleccionar sala,
-        - validar horarios,
-        - detectar conflictos,
-        - configurar pricing,
-        - configurar formatos especiales.
-        """
         print("\nCREATE SHOWTIME")
 
         movie_id = input("Movie ID: ").strip()
         room_id = input("Room ID: ").strip()
-        starts_at = input("Starts at: ").strip()
+
+        starts_at_str = input(
+            "Starts at (YYYY-MM-DD HH:MM): "
+        ).strip()
 
         try:
-            result = self.create_showtime_use_case.execute(
+
+            starts_at = datetime.strptime(
+                starts_at_str,
+                "%Y-%m-%d %H:%M",
+            )
+
+            self.create_showtime_use_case.execute(
                 movie_id=movie_id,
                 room_id=room_id,
                 starts_at=starts_at,
             )
 
-            print("\nShowtime created successfully.")
+            print(
+                "\nShowtime created successfully."
+            )
 
         except Exception as exc:
             self._handle_admin_error(exc)
@@ -316,13 +327,6 @@ class AdminCommands:
     def _view_movies(self) -> None:
         """
         Muestra películas registradas.
-
-        Notes
-        -----
-        Más adelante este método podrá:
-        - paginar resultados,
-        - mostrar estadísticas,
-        - mostrar estado de cartelera.
         """
         print("\nMOVIES")
         print("-" * 50)
@@ -335,21 +339,24 @@ class AdminCommands:
             return
 
         for movie in movies:
-            print(f"- {movie.title}")
+
+            print(f"ID: {movie.movie_id}")
+            print(f"Title: {movie.title}")
+            print(
+                f"Duration: "
+                f"{movie.duration_minutes} min"
+            )
+            print(
+                f"Classification: "
+                f"{movie.classification}"
+            )
+            print("-" * 50)
 
         self._pause()
 
     def _view_showtimes(self) -> None:
         """
         Muestra funciones registradas.
-
-        Notes
-        -----
-        Más adelante este método podrá:
-        - mostrar ocupación,
-        - mostrar disponibilidad,
-        - mostrar conflictos,
-        - mostrar métricas.
         """
         print("\nSHOWTIMES")
         print("-" * 50)
@@ -362,43 +369,173 @@ class AdminCommands:
             return
 
         for showtime in showtimes:
-            print(
-                f"- {showtime.movie.title} "
-                f"at {showtime.starts_at}"
-            )
+            print(f"ID: {showtime.showtime_id}")
+            print(f"Movie ID: {showtime.movie_id}")
+            print(f"Room ID: {showtime.room_id}")
+            print(f"Starts At: {showtime.starts_at}")
+            print(f"Status: {showtime.status}")
+            print("-" * 50)
 
         self._pause()
 
     def _view_bookings(self) -> None:
         """
-        Muestra bookings registrados.
-
-        Notes
-        -----
-        Más adelante este método podrá:
-        - filtrar reservas,
-        - mostrar revenue,
-        - mostrar estados,
-        - exportar reportes.
+        Muestra reservas registradas con información amigable.
         """
-        print("\nBOOKINGS")
+        print("\nRESERVAS")
         print("-" * 50)
+
+        if self.booking_service is None:
+            print("Servicio de reservas no disponible.")
+            self._pause()
+            return
 
         bookings = self.booking_service.list_bookings()
 
         if not bookings:
-            print("No bookings available.")
+            print("No hay reservas registradas.")
             self._pause()
             return
 
         for booking in bookings:
-            print(
-                f"- Booking {booking.booking_id} "
-                f"({booking.status})"
+            showtime = self.showtime_service.get_showtime_by_id(
+                booking.showtime_id
             )
 
-        self._pause()
+            movie = None
 
+            if showtime is not None:
+                movie = self.movie_service.get_movie_by_id(
+                    showtime.movie_id
+                )
+
+            seat_labels = [
+                seat_id.split("-")[-1]
+                for seat_id in booking.seat_ids
+            ]
+
+            movie_title = (
+                movie.title
+                if movie is not None
+                else "Película no encontrada"
+            )
+
+            room_id = (
+                showtime.room_id
+                if showtime is not None
+                else "Sala no encontrada"
+            )
+
+            starts_at = (
+                showtime.starts_at
+                if showtime is not None
+                else "Función no encontrada"
+            )
+
+            print(f"ID reserva: {booking.booking_id}")
+            print(f"Cliente: {booking.customer_id}")
+            print(f"Película: {movie_title}")
+            print(f"Sala: {room_id}")
+            print(f"Inicio: {starts_at}")
+            print(f"Asientos: {', '.join(seat_labels)}")
+            print(
+                f"Total: {booking.total_amount.amount} "
+                f"{booking.total_amount.currency}"
+            )
+            print(f"Estado: {booking.status}")
+            print(f"Pago: {booking.payment_status}")
+            print("-" * 50)
+
+        self._pause()
+    
+    def _cancel_booking_flow(self) -> None:
+        """
+        Cancela una reserva existente.
+        """
+        print("\nCANCEL BOOKING")
+        print("-" * 50)
+
+        if self.booking_service is None:
+            print("Servicio de reservas no disponible.")
+            self._pause()
+            return
+
+        bookings = self.booking_service.list_bookings()
+
+        if not bookings:
+            print("No hay reservas registradas.")
+            self._pause()
+            return
+
+        for index, booking in enumerate(bookings, start=1):
+            seat_labels = [
+                seat_id.split("-")[-1]
+                for seat_id in booking.seat_ids
+            ]
+
+            print(f"{index}.")
+            print(f"ID reserva: {booking.booking_id}")
+            print(f"Asientos: {', '.join(seat_labels)}")
+            print(f"Estado: {booking.status}")
+            print("-" * 50)
+
+        print("\n0. Regresar")
+
+        option = input(
+            "\nSeleccione la reserva a cancelar: "
+        ).strip()
+
+        if option == "0":
+            return
+
+        if not option.isdigit():
+            self._handle_invalid_option()
+            self._pause()
+            return
+
+        booking_index = int(option) - 1
+
+        if (
+            booking_index < 0
+            or booking_index >= len(bookings)
+        ):
+            self._handle_invalid_option()
+            self._pause()
+            return
+
+        selected_booking = bookings[booking_index]
+
+        print("\nReserva seleccionada:")
+        print(f"ID: {selected_booking.booking_id}")
+        print(f"Estado actual: {selected_booking.status}")
+
+        confirmation = input(
+            "\n¿Confirmar cancelación? (y/n): "
+        ).strip().lower()
+
+        if confirmation != "y":
+            print("\nCancelación abortada.")
+            self._pause()
+            return
+
+        try:
+            cancelled_booking = (
+                self.booking_service.cancel_booking(
+                    selected_booking.booking_id
+                )
+            )
+
+            print("\nReserva cancelada correctamente.")
+            print(f"ID: {cancelled_booking.booking_id}")
+            print(f"Estado: {cancelled_booking.status}")
+            print("Los asientos fueron liberados.")
+
+        except Exception as exc:
+            self._handle_admin_error(exc)
+
+        self._pause()
+    
+    
     def _handle_invalid_option(self) -> None:
         """
         Maneja opciones inválidas.

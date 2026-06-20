@@ -56,6 +56,22 @@ PAYMENT_FAILED = "FAILED"
 # Pago reembolsado.
 PAYMENT_REFUNDED = "REFUNDED"
 
+# ============================================================================
+# SHOWTIME STATES
+# ============================================================================
+
+# Función programada pero todavía no iniciada.
+SHOWTIME_SCHEDULED = "SCHEDULED"
+
+# Función actualmente activa.
+SHOWTIME_ACTIVE = "ACTIVE"
+
+# Función finalizada.
+SHOWTIME_FINISHED = "FINISHED"
+
+# Función cancelada.
+SHOWTIME_CANCELLED = "CANCELLED"
+
 
 # ============================================================================
 # LOCK CONFIGURATION
@@ -63,6 +79,14 @@ PAYMENT_REFUNDED = "REFUNDED"
 
 # Tiempo máximo de bloqueo de asiento (segundos).
 LOCK_TTL_SECONDS = 300
+
+
+# ============================================================================
+# ROOM STATES
+# ============================================================================
+
+ROOM_ACTIVE = "ACTIVE"
+ROOM_INACTIVE = "INACTIVE"
 
 
 # ============================================================================
